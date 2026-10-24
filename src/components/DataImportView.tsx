@@ -453,6 +453,15 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         </h3>
 
         <div className="flex flex-col gap-2.5">
+          <a
+            href="/melotrace-github.zip"
+            download="melotrace-github.zip"
+            className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 active:scale-98 text-white text-xs font-medium flex items-center justify-center gap-2 transition-all text-center"
+          >
+            <Download className="w-3.5 h-3.5 text-[#30d158]" />
+            <span>GitHub公開用プロジェクト一式をダウンロード (.zip)</span>
+          </a>
+
           <button
             onClick={handleExportJson}
             className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 active:scale-98 text-white text-xs font-medium flex items-center justify-center gap-2 transition-all"
