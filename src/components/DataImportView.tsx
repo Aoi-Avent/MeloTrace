@@ -17,10 +17,62 @@ import {
   Filter,
   Volume2,
   ShieldAlert,
+  Copy,
+  Code2,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { parseTakeoutJson } from '../utils/parser';
 import { MusicTrack, ActiveTab } from '../types/music';
+
+const GITHUB_ACTIONS_WORKFLOW_YAML = `name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build project
+        run: npm run build
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+`;
 
 interface DataImportViewProps {
   setActiveTab: (tab: ActiveTab) => void;
@@ -54,6 +106,8 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
   // Single URL add state
   const [quickUrl, setQuickUrl] = useState('');
   const [quickAddSuccess, setQuickAddSuccess] = useState(false);
+  const [copiedWorkflow, setCopiedWorkflow] = useState(false);
+  const [showGithubGuide, setShowGithubGuide] = useState(false);
 
   // Load demo data handler
   const handleLoadDemo = () => {
@@ -146,6 +200,16 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+  };
+
+  const handleCopyWorkflow = async () => {
+    try {
+      await navigator.clipboard.writeText(GITHUB_ACTIONS_WORKFLOW_YAML);
+      setCopiedWorkflow(true);
+      setTimeout(() => setCopiedWorkflow(false), 2500);
+    } catch (e) {
+      // fallback
+    }
   };
 
   return (
@@ -461,6 +525,69 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
             <Download className="w-3.5 h-3.5 text-[#30d158]" />
             <span>GitHub公開用プロジェクト一式をダウンロード (.zip)</span>
           </a>
+
+          {/* GitHub Pages Deploy Guide & .github folder explanation */}
+          <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Code2 className="w-3.5 h-3.5 text-[#0a84ff]" />
+                GitHub Pages 公開手順（.github 対策）
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowGithubGuide(!showGithubGuide)}
+                className="text-[11px] text-[#0a84ff] hover:underline"
+              >
+                {showGithubGuide ? '閉じる' : '手順を見る'}
+              </button>
+            </div>
+
+            <p className="text-[11px] text-[#8e8e93] leading-relaxed">
+              ブラウザの仕様により、ファイルをドラッグ＆ドロップすると「<span className="text-white font-mono">.github</span>」フォルダが自動で除外されます。そのため以下の手順でデプロイ設定を追加してください。
+            </p>
+
+            <button
+              type="button"
+              onClick={handleCopyWorkflow}
+              className={`w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                copiedWorkflow
+                  ? 'bg-[#30d158] text-black shadow-lg shadow-[#30d158]/20'
+                  : 'bg-[#0a84ff]/20 text-[#0a84ff] hover:bg-[#0a84ff]/30 border border-[#0a84ff]/40'
+              }`}
+            >
+              {copiedWorkflow ? (
+                <>
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>deploy.yml の内容をコピーしました！</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>GitHub Actions 設定 (deploy.yml) をコピー</span>
+                </>
+              )}
+            </button>
+
+            {showGithubGuide && (
+              <ol className="list-decimal list-inside text-[11px] text-[#8e8e93] leading-relaxed flex flex-col gap-1.5 pt-1 border-t border-white/5">
+                <li>
+                  ダウンロードしたZIPを解凍し、GitHubのリポジトリへドラッグ＆ドロップしてCommitします。
+                </li>
+                <li>
+                  GitHubリポジトリ画面で「<b className="text-white">Add file</b>」→「<b className="text-white">Create new file</b>」をクリックします。
+                </li>
+                <li>
+                  ファイル名欄に「<span className="text-white font-mono bg-white/10 px-1 py-0.5 rounded">.github/workflows/deploy.yml</span>」と入力します（スラッシュを入力すると自動でフォルダになります）。
+                </li>
+                <li>
+                  上の「deploy.ymlをコピー」ボタンでコピーした内容をそのまま貼り付け、下の「<b className="text-white">Commit changes</b>」をクリックします。
+                </li>
+                <li>
+                  リポジトリの「<b className="text-white">Settings</b>」タブ →「<b className="text-white">Pages</b>」を開き、<b className="text-white">Source</b> を「<b className="text-[#30d158]">GitHub Actions</b>」に変更してください。数分で公開URLが発行されます！
+                </li>
+              </ol>
+            )}
+          </div>
 
           <button
             onClick={handleExportJson}

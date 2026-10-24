@@ -16,6 +16,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+      (function(){
+        // Ensure trailing slash for GitHub Pages project sites so relative assets resolve properly
+        if (window.location.pathname.indexOf('.') === -1 && !window.location.pathname.endsWith('/')) {
+          window.history.replaceState(null, '', window.location.pathname + '/' + window.location.search + window.location.hash);
+        }
+        // Handle redirect from 404.html
+        var redirect = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+        if (redirect && redirect !== location.href) {
+          history.replaceState(null, null, redirect);
+        }
+      })();
+    </script>
   </head>
   <body class="bg-[#090a0f] text-slate-100 antialiased selection:bg-rose-500 selection:text-white overscroll-none">
     <div id="root"></div>

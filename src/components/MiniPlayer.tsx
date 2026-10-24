@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Play, Pause, SkipForward, Disc3 } from 'lucide-react';
+import { Play, Pause, SkipForward, Disc3, Loader2 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 
 export const MiniPlayer: React.FC = () => {
   const {
     currentTrack,
     isPlaying,
+    isBuffering,
     currentTime,
     duration,
     togglePlay,
@@ -76,7 +77,9 @@ export const MiniPlayer: React.FC = () => {
               className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:text-white/80 active:scale-90 transition-transform"
               aria-label={isPlaying ? '一時停止' : '再生'}
             >
-              {isPlaying ? (
+              {isBuffering && isPlaying ? (
+                <Loader2 className="w-4 h-4 animate-spin text-[#fa2d48]" />
+              ) : isPlaying ? (
                 <Pause className="w-5 h-5 fill-current" />
               ) : (
                 <Play className="w-5 h-5 fill-current ml-0.5" />

@@ -117,20 +117,13 @@ const AppContent: React.FC = () => {
   return (
     <div className="h-full w-full bg-[#000000] text-[#f5f5f7] flex flex-col font-sans select-none overflow-hidden relative">
       {/* THE OFFICIAL PERSISTENT YOUTUBE PLAYER CONTAINER */}
-      {/* Always kept mounted in DOM to prevent audio interruption */}
+      {/* Kept mounted in DOM to prevent audio interruption; hidden off-screen when not viewing video */}
       <div
-        className={`transition-all duration-300 ${
+        className={
           isVideoVisible
             ? 'fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-sm aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-black'
-            : isNowPlayingOpen
-            ? 'fixed top-20 left-1/2 -translate-x-1/2 z-0 opacity-0 pointer-events-none w-[92%] max-w-sm aspect-video'
-            : isPlaying
-            ? 'fixed bottom-[calc(7.8rem+max(env(safe-area-inset-bottom,0px),8px))] right-3 z-30 w-24 aspect-video rounded-xl overflow-hidden shadow-2xl border border-white/20 bg-black cursor-pointer active:scale-95'
-            : 'fixed -bottom-96 -right-96 opacity-0 pointer-events-none w-1 h-1'
-        }`}
-        onClick={() => {
-          if (!isNowPlayingOpen) setIsNowPlayingOpen(true);
-        }}
+            : 'fixed -top-[9999px] -left-[9999px] w-[320px] h-[180px] pointer-events-none opacity-[0.01]'
+        }
       >
         <div id="yt-player-target" className="w-full h-full" />
       </div>

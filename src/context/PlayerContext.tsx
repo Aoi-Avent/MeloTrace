@@ -46,7 +46,8 @@ interface PlayerContextType {
   clearAllBans: () => void;
   setCustomLyrics: (trackId: string, lyrics: string) => void;
   setNowPlayingTab: (tab: 'video' | 'lyrics' | 'art' | 'queue') => void;
-  playTrack: (track: MusicTrack, newQueue?: MusicTrack[]) => void;
+  isBuffering: boolean;
+  playTrack: (track: MusicTrack, newQueue?: MusicTrack[], shouldOpenModal?: boolean) => void;
   playBgmStation: () => void;
   togglePlay: () => void;
   nextTrack: () => void;
@@ -209,12 +210,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [ytPlayerReady, setYtPlayerReady] = useState<boolean>(false);
   const [nowPlayingTab, setNowPlayingTab] = useState<'video' | 'lyrics' | 'art' | 'queue'>('art');
   const [isLoadingLyrics, setIsLoadingLyrics] = useState<boolean>(false);
+  const [isBuffering, setIsBuffering] = useState<boolean>(false);
 
   const ytPlayerRef = useRef<any>(null);
   const pendingTrackRef = useRef<MusicTrack | null>(null);
   const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const bufferingWatchdogRef = useRef<NodeJS.Timeout | null>(null);
+  const consecutiveErrorsRef = useRef<number>(0);
   const nextTrackRef = useRef<() => void>(() => {});
   const handleTrackEndedRef = useRef<() => void>(() => {});
 
@@ -320,7 +322,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setQueueIndex(nextIdx);
     const nextT = queue[nextIdx];
     if (nextT) {
-      playTrack(nextT, queue);
+      playTrack(nextT, queue, false);
     }
   }, [repeatMode, queue, queueIndex, isShuffle]);
 
@@ -348,7 +350,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ytPlayerRef.current = new window.YT.Player('yt-player-target', {
           height: '100%',
           width: '100%',
-          host: 'https://www.youtube-nocookie.com',
           videoId: currentTrack?.id || 'ZRtdQ81jPUQ',
           playerVars: {
             autoplay: 0,
@@ -359,8 +360,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             enablejsapi: 1,
             iv_load_policy: 3,
             fs: 0,
-            origin: window.location.origin,
-            widget_referrer: window.location.href,
           },
           events: {
             onReady: () => {
@@ -370,53 +369,48 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 pendingTrackRef.current = null;
                 try {
                   ytPlayerRef.current.loadVideoById(p.id, 0);
-                  ytPlayerRef.current.playVideo();
+                  ytPlayerRef.current.playVideo?.();
                 } catch (e) {
                   console.warn('onReady loadVideoById failed', e);
                 }
               }
             },
             onStateChange: (event: any) => {
-              // 1: PLAYING, 2: PAUSED, 0: ENDED, 3: BUFFERING
+              // 1: PLAYING, 2: PAUSED, 0: ENDED, 3: BUFFERING, -1: UNSTARTED, 5: CUED
               if (event.data === 1) {
                 setIsPlaying(true);
-                if (bufferingWatchdogRef.current) {
-                  clearTimeout(bufferingWatchdogRef.current);
-                  bufferingWatchdogRef.current = null;
-                }
+                setIsBuffering(false);
+                consecutiveErrorsRef.current = 0;
                 const d = ytPlayerRef.current?.getDuration?.();
                 if (d && !isNaN(d) && d > 0) setDuration(d);
               } else if (event.data === 2) {
                 setIsPlaying(false);
-                if (bufferingWatchdogRef.current) {
-                  clearTimeout(bufferingWatchdogRef.current);
-                  bufferingWatchdogRef.current = null;
-                }
+                setIsBuffering(false);
               } else if (event.data === 0) {
-                if (bufferingWatchdogRef.current) {
-                  clearTimeout(bufferingWatchdogRef.current);
-                  bufferingWatchdogRef.current = null;
-                }
+                setIsBuffering(false);
                 handleTrackEndedRef.current();
               } else if (event.data === 3) {
-                // Buffering state - watch if it hangs > 7.5 seconds
-                if (bufferingWatchdogRef.current) clearTimeout(bufferingWatchdogRef.current);
-                bufferingWatchdogRef.current = setTimeout(() => {
-                  console.warn('Playback stalled in buffering, advancing to next track');
-                  nextTrackRef.current();
-                }, 7500);
+                // Buffering is normal stream loading. Never skip track during buffering!
+                setIsBuffering(true);
+              } else if (event.data === -1 || event.data === 5) {
+                setIsBuffering(false);
               }
             },
             onError: (err: any) => {
               const errCode = err?.data;
               console.warn('YouTube Player Error Code:', errCode);
-              if (bufferingWatchdogRef.current) {
-                clearTimeout(bufferingWatchdogRef.current);
-                bufferingWatchdogRef.current = null;
-              }
+              setIsBuffering(false);
               // 2: Invalid param, 5: HTML5 player error, 100: Not found/private, 101/150: Embed blocked
               if ([2, 5, 100, 101, 150].includes(errCode)) {
-                setTimeout(() => nextTrackRef.current(), 600);
+                if (consecutiveErrorsRef.current < 2) {
+                  consecutiveErrorsRef.current += 1;
+                  console.warn(`Unplayable video (${errCode}), skipping to next (attempt ${consecutiveErrorsRef.current}/2)`);
+                  setTimeout(() => nextTrackRef.current(), 1000);
+                } else {
+                  console.warn('Multiple consecutive playback errors. Pausing playback to prevent skip storm.');
+                  setIsPlaying(false);
+                  consecutiveErrorsRef.current = 0;
+                }
               }
             },
           },
@@ -464,7 +458,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [isPlaying]);
 
   const playTrack = useCallback(
-    (track: MusicTrack, newQueue?: MusicTrack[]) => {
+    (track: MusicTrack, newQueue?: MusicTrack[], shouldOpenModal: boolean = false) => {
       const isBgm = isBgmOrClassicalTrack(track);
       const defaultQ = isBgm ? bgmTracks : musicTracks.length > 0 ? musicTracks : activeTracks;
       const q = newQueue || (queue.length > 0 ? queue : defaultQ);
@@ -478,7 +472,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCurrentTime(0);
       setDuration(track.duration || 210);
       setIsPlaying(true);
-      setIsNowPlayingOpen(true);
+      setIsBuffering(true);
+
+      // Only open full modal sheet if explicitly requested
+      if (shouldOpenModal) {
+        setIsNowPlayingOpen(true);
+      }
 
       // Trigger iOS Background Playback keep-alive & MediaSession metadata
       audioKeepAlive.onPlay(track);
@@ -486,7 +485,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (ytPlayerRef.current?.loadVideoById) {
         try {
           ytPlayerRef.current.loadVideoById(track.id, 0);
-          ytPlayerRef.current.playVideo();
+          ytPlayerRef.current.playVideo?.();
         } catch (e) {
           console.warn('loadVideoById failed', e);
         }
@@ -514,7 +513,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (bgmTracks.length === 0) return;
     setIsShuffle(true);
     const rand = Math.floor(Math.random() * bgmTracks.length);
-    playTrack(bgmTracks[rand], bgmTracks);
+    playTrack(bgmTracks[rand], bgmTracks, false);
   }, [bgmTracks, playTrack]);
 
   const togglePlay = useCallback(() => {
@@ -549,7 +548,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setQueueIndex(nextIdx);
     const nextT = queue[nextIdx];
     if (nextT) {
-      playTrack(nextT, queue);
+      playTrack(nextT, queue, false);
     }
   }, [queue, queueIndex, isShuffle, playTrack]);
 
@@ -563,7 +562,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setQueueIndex(prevIdx);
     const prevT = queue[prevIdx];
     if (prevT) {
-      playTrack(prevT, queue);
+      playTrack(prevT, queue, false);
     }
   }, [queue, queueIndex, playTrack]);
 
@@ -839,6 +838,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         nowPlayingTab,
         isDemoMode,
         isLoadingLyrics,
+        isBuffering,
         bannedArtists,
         bannedTracks,
         strictnessMode,

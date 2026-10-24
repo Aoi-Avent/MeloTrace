@@ -52,6 +52,18 @@ npm run dev
 npm run build
 ```
 
+## GitHub Pages への公開方法
+
+1. **ZIPからGitHubリポジトリを作成する場合**
+   - ZIPを解凍し、中身のファイルをGitHubリポジトリにアップロードします。
+   - ⚠️ **重要**: ブラウザのセキュリティ仕様上、フォルダ丸ごとドラッグ＆ドロップすると「`.github`」隠しフォルダが除外されます。
+   - そのため、GitHub上で **「Add file」→「Create new file」** をクリックし、ファイル名に `.github/workflows/deploy.yml` と入力して、`github-actions/deploy.yml` の内容を貼り付けて保存（Commit）してください。
+
+2. **GitHub Pagesの設定**
+   - リポジトリの **「Settings」タブ →「Pages」** を開きます。
+   - **「Build and deployment」>「Source」** を「**GitHub Actions**」に変更します。
+   - これで数分後に自動的にGitHub Actionsがビルドを実行し、公開URL（`https://<ユーザー名>.github.io/<リポジトリ名>/`）が発行されます。
+
 ## ライセンス
 
 Apache License 2.0

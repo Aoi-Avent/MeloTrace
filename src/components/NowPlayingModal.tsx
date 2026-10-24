@@ -34,6 +34,7 @@ export const NowPlayingModal: React.FC = () => {
   const {
     currentTrack,
     isPlaying,
+    isBuffering,
     currentTime,
     duration,
     playbackRate,
@@ -70,6 +71,7 @@ export const NowPlayingModal: React.FC = () => {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [customSearchTitle, setCustomSearchTitle] = useState('');
   const [customSearchArtist, setCustomSearchArtist] = useState('');
+  const [searchErrorMsg, setSearchErrorMsg] = useState<string | null>(null);
   const [isReSearching, setIsReSearching] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -155,13 +157,15 @@ export const NowPlayingModal: React.FC = () => {
     e.preventDefault();
     if (!customSearchTitle.trim()) return;
     setIsReSearching(true);
+    setSearchErrorMsg(null);
     const res = await getLyricsForTrack(customSearchArtist.trim(), customSearchTitle.trim(), duration);
     setIsReSearching(false);
     if (res) {
       setCustomLyrics(currentTrack.id, res);
       setShowSearchModal(false);
+      setSearchErrorMsg(null);
     } else {
-      alert('指定したキーワードでも同期歌詞が見つかりませんでした。「歌詞を手動入力」から貼り付けることもできます。');
+      setSearchErrorMsg('指定したキーワードでは該当する同期歌詞が見つかりませんでした。「歌詞を手動入力」から貼り付けることもできます。');
     }
   };
 
@@ -554,7 +558,9 @@ export const NowPlayingModal: React.FC = () => {
             className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_4px_24px_rgba(255,255,255,0.25)]"
             aria-label={isPlaying ? '一時停止' : '再生'}
           >
-            {isPlaying ? (
+            {isBuffering && isPlaying ? (
+              <Loader2 className="w-8 h-8 animate-spin text-black" />
+            ) : isPlaying ? (
               <Pause className="w-8 h-8 fill-current" />
             ) : (
               <Play className="w-8 h-8 fill-current ml-1" />
@@ -738,11 +744,20 @@ export const NowPlayingModal: React.FC = () => {
                 <input
                   type="text"
                   value={customSearchArtist}
-                  onChange={(e) => setCustomSearchArtist(e.target.value)}
+                  onChange={(e) => {
+                    setCustomSearchArtist(e.target.value);
+                    if (searchErrorMsg) setSearchErrorMsg(null);
+                  }}
                   placeholder="例: バルーン, 蝶々P"
                   className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
                 />
               </div>
+
+              {searchErrorMsg && (
+                <div className="p-2.5 rounded-xl bg-[#fa2d48]/15 border border-[#fa2d48]/30 text-[#ff453a] text-[11px] leading-relaxed">
+                  {searchErrorMsg}
+                </div>
+              )}
               <div className="flex gap-2 mt-1">
                 <button
                   type="button"
