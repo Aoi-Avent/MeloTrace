@@ -189,8 +189,9 @@ export const AnalyticsView: React.FC = () => {
               </div>
 
               <img
-                src={track.thumbnailUrl}
+                src={`https://img.youtube.com/vi/${track.id}/mqdefault.jpg`}
                 alt={track.title}
+                referrerPolicy="no-referrer"
                 className="w-10 h-10 rounded-xl object-cover shrink-0"
                 loading="lazy"
               />
@@ -268,8 +269,9 @@ export const AnalyticsView: React.FC = () => {
                 className="flex items-center gap-3 p-2.5 rounded-2xl glass-panel hover:bg-white/10 cursor-pointer active:scale-[0.99] transition-all"
               >
                 <img
-                  src={track.thumbnailUrl}
+                  src={`https://img.youtube.com/vi/${track.id}/mqdefault.jpg`}
                   alt={track.title}
+                  referrerPolicy="no-referrer"
                   className="w-10 h-10 rounded-xl object-cover shrink-0"
                   loading="lazy"
                 />

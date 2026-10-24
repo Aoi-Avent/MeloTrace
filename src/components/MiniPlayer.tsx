@@ -1,5 +1,5 @@
-import React from 'react';
-import { Play, Pause, SkipForward, Heart, ChevronUp } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Pause, SkipForward, Heart, Disc3 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 
 export const MiniPlayer: React.FC = () => {
@@ -13,6 +13,8 @@ export const MiniPlayer: React.FC = () => {
     toggleFavorite,
     setIsNowPlayingOpen,
   } = usePlayer();
+
+  const [imgError, setImgError] = useState(false);
 
   if (!currentTrack) return null;
 
@@ -34,13 +36,19 @@ export const MiniPlayer: React.FC = () => {
 
         <div className="flex items-center gap-3 p-2.5">
           {/* Thumbnail with mini equalizer overlay when playing */}
-          <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-slate-800 border border-white/10 shadow-sm">
-            <img
-              src={currentTrack.thumbnailUrl}
-              alt={currentTrack.title}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
+          <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-slate-800 border border-white/10 shadow-sm flex items-center justify-center">
+            {!imgError ? (
+              <img
+                src={`https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`}
+                alt={currentTrack.title}
+                referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <Disc3 className="w-6 h-6 text-rose-400 animate-spin" />
+            )}
             {isPlaying && (
               <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-end justify-center gap-[2px] pb-1.5">
                 <span className="w-[3px] bg-rose-400 rounded-full animate-eq-1" />

@@ -14,8 +14,6 @@ import {
   Mic2,
   ListMusic,
   Disc3,
-  Sliders,
-  Volume2,
   ExternalLink
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
@@ -28,34 +26,35 @@ export const NowPlayingModal: React.FC = () => {
     isPlaying,
     currentTime,
     duration,
-    volume,
     playbackRate,
     queue,
-    queueIndex,
     repeatMode,
     isShuffle,
-    playMode,
     sleepTimerMinutes,
     isNowPlayingOpen,
     togglePlay,
     nextTrack,
     prevTrack,
     seekTo,
-    setVolume,
     setPlaybackRate,
     setRepeatMode,
     setIsShuffle,
     setSleepTimer,
     toggleFavorite,
-    setPlayMode,
     playTrack,
     setIsNowPlayingOpen,
   } = usePlayer();
 
-  const [activeTab, setActiveTab] = useState<'art' | 'lyrics' | 'video' | 'queue'>('art');
+  const [activeTab, setActiveTab] = useState<'video' | 'lyrics' | 'art' | 'queue'>('video');
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTimerMenu, setShowTimerMenu] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Reset image error state on track change
+  useEffect(() => {
+    setImgError(false);
+  }, [currentTrack?.id]);
 
   // Parse lyrics
   const parsedLyrics: LyricLine[] = React.useMemo(() => {
@@ -63,7 +62,7 @@ export const NowPlayingModal: React.FC = () => {
     return parseLrcLyrics(currentTrack.lyrics);
   }, [currentTrack?.lyrics]);
 
-  // Find active lyric line
+  // Active lyric index
   const activeLyricIndex = React.useMemo(() => {
     if (!parsedLyrics.length) return -1;
     for (let i = parsedLyrics.length - 1; i >= 0; i--) {
@@ -109,10 +108,10 @@ export const NowPlayingModal: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 bg-[#07080c] flex flex-col justify-between overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-300">
       {/* Dynamic blurred ambient glow behind album art */}
-      <div className="absolute inset-0 pointer-events-none opacity-40 overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none opacity-30 overflow-hidden">
         <div
           className="w-full h-full scale-150 blur-3xl bg-cover bg-center"
-          style={{ backgroundImage: `url(${currentTrack.thumbnailUrl})` }}
+          style={{ backgroundImage: `url(https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg)` }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-[#07080c]/60 via-[#07080c]/90 to-[#07080c]" />
       </div>
@@ -128,8 +127,8 @@ export const NowPlayingModal: React.FC = () => {
         </button>
 
         <div className="text-center">
-          <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400">
-            {playMode === 'stream' ? 'バックグラウンド音声再生' : 'YouTube内蔵プレイヤー'}
+          <p className="text-[10px] uppercase font-bold tracking-widest text-rose-400">
+            再生プレイヤー
           </p>
           <h3 className="text-xs font-semibold text-slate-200 mt-0.5 truncate max-w-[200px]">
             {currentTrack.genre || 'MeloTrace'}
@@ -189,15 +188,15 @@ export const NowPlayingModal: React.FC = () => {
       <div className="relative z-10 flex items-center justify-center px-4 py-1">
         <div className="inline-flex p-1 bg-white/5 border border-white/10 rounded-full backdrop-blur-md">
           <button
-            onClick={() => setActiveTab('art')}
+            onClick={() => setActiveTab('video')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              activeTab === 'art'
+              activeTab === 'video'
                 ? 'bg-white/15 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Disc3 className="w-3.5 h-3.5" />
-            <span>アート</span>
+            <Tv className="w-3.5 h-3.5" />
+            <span>映像・再生</span>
           </button>
           <button
             onClick={() => setActiveTab('lyrics')}
@@ -211,15 +210,15 @@ export const NowPlayingModal: React.FC = () => {
             <span>歌詞</span>
           </button>
           <button
-            onClick={() => setActiveTab('video')}
+            onClick={() => setActiveTab('art')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              activeTab === 'video'
+              activeTab === 'art'
                 ? 'bg-white/15 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Tv className="w-3.5 h-3.5" />
-            <span>映像</span>
+            <Disc3 className="w-3.5 h-3.5" />
+            <span>アート</span>
           </button>
           <button
             onClick={() => setActiveTab('queue')}
@@ -236,15 +235,40 @@ export const NowPlayingModal: React.FC = () => {
       </div>
 
       {/* Center Display Area */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-2 min-h-0 overflow-hidden">
-        {/* TAB 1: ART */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-2 min-h-0 overflow-hidden">
+        {/* PERSISTENT YOUTUBE PLAYER CONTAINER - Visible in Video Tab, Kept Alive in DOM */}
+        <div
+          className={`w-full max-w-sm aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black transition-all ${
+            activeTab === 'video' ? 'block relative' : 'hidden'
+          }`}
+        >
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${currentTrack.id}?autoplay=1&enablejsapi=1&playsinline=1&rel=0`}
+            title={currentTrack.title}
+            className="w-full h-full border-0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+
+        {/* TAB: ART */}
         {activeTab === 'art' && (
-          <div className="w-full max-w-[320px] aspect-square relative rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/10 group">
-            <img
-              src={currentTrack.thumbnailUrl}
-              alt={currentTrack.title}
-              className="w-full h-full object-cover"
-            />
+          <div className="w-full max-w-[280px] aspect-square relative rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/10 group flex items-center justify-center bg-slate-800">
+            {!imgError ? (
+              <img
+                src={`https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`}
+                alt={currentTrack.title}
+                referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-tr from-rose-600/40 via-violet-600/40 to-slate-900 flex flex-col items-center justify-center p-4 text-center">
+                <Disc3 className="w-16 h-16 text-rose-400 animate-spin mb-2" />
+                <p className="text-sm font-bold text-white line-clamp-2">{currentTrack.title}</p>
+                <p className="text-xs text-slate-400 mt-1">{currentTrack.artist}</p>
+              </div>
+            )}
             {isPlaying && (
               <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -254,7 +278,7 @@ export const NowPlayingModal: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 2: LYRICS */}
+        {/* TAB: LYRICS */}
         {activeTab === 'lyrics' && (
           <div
             ref={lyricsContainerRef}
@@ -289,20 +313,7 @@ export const NowPlayingModal: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3: VIDEO (Embedded YouTube Player) */}
-        {activeTab === 'video' && (
-          <div className="w-full max-w-sm aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black">
-            <iframe
-              src={`https://www.youtube-nocookie.com/embed/${currentTrack.id}?autoplay=1&enablejsapi=1`}
-              title={currentTrack.title}
-              className="w-full h-full border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
-        )}
-
-        {/* TAB 4: QUEUE */}
+        {/* TAB: QUEUE */}
         {activeTab === 'queue' && (
           <div className="w-full h-full max-h-[380px] overflow-y-auto px-1 py-2 flex flex-col gap-2">
             <p className="text-xs font-semibold text-slate-400 mb-1 px-2">
@@ -319,8 +330,9 @@ export const NowPlayingModal: React.FC = () => {
                 }`}
               >
                 <img
-                  src={t.thumbnailUrl}
+                  src={`https://img.youtube.com/vi/${t.id}/mqdefault.jpg`}
                   alt={t.title}
+                  referrerPolicy="no-referrer"
                   className="w-10 h-10 rounded-lg object-cover shrink-0"
                 />
                 <div className="flex-1 min-w-0">
@@ -437,7 +449,7 @@ export const NowPlayingModal: React.FC = () => {
           </button>
         </div>
 
-        {/* Sub Controls: Speed, Engine Toggle, YouTube Link */}
+        {/* Sub Controls: Speed & YouTube Native App Link */}
         <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-white/5">
           {/* Speed Toggle */}
           <div className="relative">
@@ -467,23 +479,15 @@ export const NowPlayingModal: React.FC = () => {
             )}
           </div>
 
-          {/* Engine Mode Switcher */}
-          <button
-            onClick={() => setPlayMode(playMode === 'stream' ? 'youtube' : 'stream')}
-            className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-medium"
-          >
-            {playMode === 'stream' ? 'ストリーム音声' : 'YouTubeプレイヤー'}
-          </button>
-
-          {/* YouTube Official Link */}
+          {/* YouTube Official Link with App Deep Link */}
           <a
             href={`https://www.youtube.com/watch?v=${currentTrack.id}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30 transition-all font-semibold text-[11px]"
           >
-            <span>YouTubeで開く</span>
-            <ExternalLink className="w-3 h-3" />
+            <span>YouTubeアプリで聴く</span>
+            <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
       </footer>

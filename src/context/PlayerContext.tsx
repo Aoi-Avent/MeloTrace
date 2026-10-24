@@ -41,23 +41,25 @@ interface PlayerContextType {
   createPlaylist: (name: string, trackIds: string[]) => void;
 }
 
-const STORAGE_KEY_TRACKS = 'melotrace_tracks_v1';
-const STORAGE_KEY_PLAYLISTS = 'melotrace_playlists_v1';
+const STORAGE_KEY_TRACKS = 'melotrace_tracks_v2';
+const STORAGE_KEY_PLAYLISTS = 'melotrace_playlists_v2';
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
-
-const PIPED_MIRRORS = [
-  'https://pipedapi.kavin.rocks',
-  'https://pipedapi.adminforge.de',
-  'https://api.piped.private.coffee',
-  'https://pipedapi.colinsv.org'
-];
 
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tracks, setTracks] = useState<MusicTrack[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TRACKS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Check if user has old invalid IDs, auto-upgrade
+          if (parsed.some((t: any) => t.id === 'f04z12v7cI8' || t.id === 'by4SYYWlhEs' || t.id === 'j1hft9WQI9U')) {
+            return DEMO_TRACKS;
+          }
+          return parsed;
+        }
+      }
     } catch (e) {
       console.warn('Failed to read stored tracks', e);
     }
@@ -82,7 +84,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [duration, setDuration] = useState<number>(tracks[0]?.duration || 210);
   const [volume, setVolumeState] = useState<number>(1);
   const [playbackRate, setPlaybackRateState] = useState<number>(1);
-  const [playMode, setPlayMode] = useState<PlayMode>('youtube'); // 'youtube' is 100% reliable on web
+  const [playMode, setPlayMode] = useState<PlayMode>('youtube');
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('all');
   const [isShuffle, setIsShuffle] = useState<boolean>(false);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState<number | null>(null);
@@ -90,10 +92,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isStreamLoading, setIsStreamLoading] = useState<boolean>(false);
   const [streamError, setStreamError] = useState<string | null>(null);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Save tracks & playlists to localStorage
+  // Sync to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_TRACKS, JSON.stringify(tracks));
@@ -110,138 +112,57 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [playlists]);
 
-  // Audio element setup
+  // Simulated playback time increment for synced lyrics and progress bar
   useEffect(() => {
-    const audio = new Audio();
-    audioRef.current = audio;
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-
-    const handleDurationChange = () => {
-      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
-        setDuration(audio.duration);
-      }
-    };
-
-    const handleEnded = () => {
-      handleTrackEnded();
-    };
-
-    const handleError = () => {
-      setIsStreamLoading(false);
-      setStreamError('音声ストリームを取得できませんでした。YouTubeプレイヤーで再生します。');
-      setPlayMode('youtube');
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('durationchange', handleDurationChange);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
-
+    if (isPlaying) {
+      timerIntervalRef.current = setInterval(() => {
+        setCurrentTime((prev) => {
+          if (prev >= duration) {
+            handleTrackEnded();
+            return 0;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } else {
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    }
     return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('durationchange', handleDurationChange);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
-      audio.pause();
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     };
-  }, []);
+  }, [isPlaying, duration]);
 
   // Media Session integration
   useEffect(() => {
     if ('mediaSession' in navigator && currentTrack) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentTrack.title,
-        artist: currentTrack.artist,
-        album: currentTrack.genre || 'MeloTrace',
-        artwork: [
-          { src: currentTrack.thumbnailUrl, sizes: '512x512', type: 'image/jpeg' },
-          { src: `https://i.ytimg.com/vi/${currentTrack.id}/mqdefault.jpg`, sizes: '320x180', type: 'image/jpeg' }
-        ]
-      });
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: currentTrack.title,
+          artist: currentTrack.artist,
+          album: currentTrack.genre || 'MeloTrace',
+          artwork: [
+            { src: currentTrack.thumbnailUrl, sizes: '512x512', type: 'image/jpeg' },
+            { src: `https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`, sizes: '320x180', type: 'image/jpeg' }
+          ]
+        });
 
-      navigator.mediaSession.setActionHandler('play', () => {
-        togglePlay();
-      });
-      navigator.mediaSession.setActionHandler('pause', () => {
-        togglePlay();
-      });
-      navigator.mediaSession.setActionHandler('nexttrack', () => {
-        nextTrack();
-      });
-      navigator.mediaSession.setActionHandler('previoustrack', () => {
-        prevTrack();
-      });
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime != null) {
-          seekTo(details.seekTime);
-        }
-      });
+        navigator.mediaSession.setActionHandler('play', () => togglePlay());
+        navigator.mediaSession.setActionHandler('pause', () => togglePlay());
+        navigator.mediaSession.setActionHandler('nexttrack', () => nextTrack());
+        navigator.mediaSession.setActionHandler('previoustrack', () => prevTrack());
+      } catch (e) {
+        // MediaSession optional
+      }
     }
   }, [currentTrack]);
 
-  // Handle stream resolution if playMode === 'stream'
-  const loadAudioStream = useCallback(async (track: MusicTrack) => {
-    if (!audioRef.current) return;
-    setIsStreamLoading(true);
-    setStreamError(null);
-
-    let streamUrl: string | null = null;
-    for (const mirror of PIPED_MIRRORS) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-        const res = await fetch(`${mirror}/streams/${track.id}`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (res.ok) {
-          const data = await res.json();
-          const audioStreams = data.audioStreams || [];
-          if (audioStreams.length > 0) {
-            // Find m4a or webm
-            const m4a = audioStreams.find((s: any) => /m4a|mp4/i.test(s.mimeType || s.format));
-            streamUrl = (m4a || audioStreams[0]).url;
-            break;
-          }
-        }
-      } catch (err) {
-        // try next mirror
-      }
-    }
-
-    setIsStreamLoading(false);
-
-    if (streamUrl && audioRef.current) {
-      audioRef.current.src = streamUrl;
-      audioRef.current.playbackRate = playbackRate;
-      audioRef.current.volume = volume;
-      audioRef.current.play().then(() => {
-        setIsPlaying(true);
-      }).catch((e) => {
-        console.warn('Audio play failed:', e);
-        setPlayMode('youtube');
-      });
-    } else {
-      setStreamError('ストリームが見つかりませんでした。YouTube内蔵プレイヤーに切り替えます。');
-      setPlayMode('youtube');
-      setIsPlaying(true);
-    }
-  }, [playbackRate, volume]);
-
   const handleTrackEnded = useCallback(() => {
     if (repeatMode === 'one') {
-      if (playMode === 'stream' && audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play();
-      } else {
-        setCurrentTime(0);
-      }
+      setCurrentTime(0);
       return;
     }
     nextTrack();
-  }, [repeatMode, playMode]);
+  }, [repeatMode]);
 
   const playTrack = useCallback((track: MusicTrack, newQueue?: MusicTrack[]) => {
     const q = newQueue || queue;
@@ -255,7 +176,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setDuration(track.duration || 210);
     setIsPlaying(true);
 
-    // Update track play count and lastPlayed in state
+    // Update track play count and lastPlayed
     setTracks(prev => prev.map(t => {
       if (t.id === track.id) {
         return {
@@ -266,27 +187,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       return t;
     }));
-
-    if (playMode === 'stream') {
-      loadAudioStream(track);
-    }
-  }, [queue, playMode, loadAudioStream]);
+  }, [queue]);
 
   const togglePlay = useCallback(() => {
-    if (playMode === 'stream' && audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      } else {
-        audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {
-          setPlayMode('youtube');
-          setIsPlaying(true);
-        });
-      }
-    } else {
-      setIsPlaying(prev => !prev);
-    }
-  }, [isPlaying, playMode]);
+    setIsPlaying(prev => !prev);
+  }, []);
 
   const nextTrack = useCallback(() => {
     if (queue.length === 0) return;
@@ -315,31 +220,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const seekTo = useCallback((sec: number) => {
     setCurrentTime(sec);
-    if (playMode === 'stream' && audioRef.current) {
-      audioRef.current.currentTime = sec;
-    }
-  }, [playMode]);
+  }, []);
 
   const setVolume = useCallback((vol: number) => {
-    const clamped = Math.max(0, Math.min(1, vol));
-    setVolumeState(clamped);
-    if (audioRef.current) {
-      audioRef.current.volume = clamped;
-    }
+    setVolumeState(Math.max(0, Math.min(1, vol)));
   }, []);
 
   const setPlaybackRate = useCallback((rate: number) => {
     setPlaybackRateState(rate);
-    if (audioRef.current) {
-      audioRef.current.playbackRate = rate;
-    }
   }, []);
 
   const toggleFavorite = useCallback((trackId: string) => {
     setTracks(prev => prev.map(t => {
       if (t.id === trackId) {
-        const nextFav = !t.isFavorite;
-        return { ...t, isFavorite: nextFav };
+        return { ...t, isFavorite: !t.isFavorite };
       }
       return t;
     }));
@@ -361,13 +255,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (minutes && minutes > 0) {
       sleepTimerRef.current = setTimeout(() => {
         setIsPlaying(false);
-        if (audioRef.current) audioRef.current.pause();
         setSleepTimerMinutes(null);
       }, minutes * 60 * 1000);
     }
   }, []);
 
-  // Demo data loader
   const loadDemoData = useCallback(() => {
     setTracks(DEMO_TRACKS);
     setPlaylists(DEMO_PLAYLISTS);
@@ -375,17 +267,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setQueueIndex(0);
     setCurrentTrack(DEMO_TRACKS[0]);
     setCurrentTime(0);
-    setIsPlaying(false);
+    setIsPlaying(true);
   }, []);
 
-  // Import tracks
   const importTracks = useCallback((newTracks: MusicTrack[]) => {
     if (!newTracks || newTracks.length === 0) return;
     setTracks(prev => {
       const map = new Map<string, MusicTrack>();
-      // Put existing
       prev.forEach(t => map.set(t.id, t));
-      // Merge or add new
       newTracks.forEach(t => {
         const exist = map.get(t.id);
         if (exist) {
@@ -398,13 +287,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           map.set(t.id, t);
         }
       });
-      const combined = Array.from(map.values()).sort((a, b) => b.playCount - a.playCount);
-      return combined;
+      return Array.from(map.values()).sort((a, b) => b.playCount - a.playCount);
     });
     setQueue(prev => [...newTracks, ...prev]);
   }, []);
 
-  // Add track by URL
   const addSingleTrackByUrl = useCallback((urlOrId: string, customTitle?: string, customArtist?: string): boolean => {
     const id = extractYouTubeId(urlOrId);
     if (!id) return false;
@@ -419,7 +306,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       lastPlayed: new Date().toISOString().replace('T', ' ').slice(0, 16),
       firstPlayed: new Date().toISOString().replace('T', ' ').slice(0, 16),
       isFavorite: true,
-      thumbnailUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+      thumbnailUrl: `https://img.youtube.com/vi/${id}/mqdefault.jpg`,
     };
 
     setTracks(prev => [newTrack, ...prev.filter(t => t.id !== id)]);

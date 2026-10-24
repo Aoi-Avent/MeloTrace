@@ -295,8 +295,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
               >
                 <div className="w-32 h-32 rounded-2xl overflow-hidden relative mb-2 bg-slate-800 border border-white/5 shadow-md">
                   <img
-                    src={track.thumbnailUrl}
+                    src={`https://img.youtube.com/vi/${track.id}/mqdefault.jpg`}
                     alt={track.title}
+                    referrerPolicy="no-referrer"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     loading="lazy"
                   />
@@ -356,8 +357,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
                 </span>
 
                 <img
-                  src={track.thumbnailUrl}
+                  src={`https://img.youtube.com/vi/${track.id}/mqdefault.jpg`}
                   alt={track.title}
+                  referrerPolicy="no-referrer"
                   className="w-11 h-11 rounded-xl object-cover shrink-0"
                   loading="lazy"
                 />

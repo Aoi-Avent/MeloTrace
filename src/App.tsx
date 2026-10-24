@@ -16,17 +16,22 @@ import { ActiveTab } from './types/music';
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
-  const { currentTrack, isPlaying, playMode, isNowPlayingOpen } = usePlayer();
+  const { currentTrack, isPlaying, isNowPlayingOpen, setIsNowPlayingOpen } = usePlayer();
 
   return (
     <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col font-sans select-none overflow-x-hidden">
-      {/* Background Hidden YouTube Player for continuous web audio in youtube mode */}
-      {playMode === 'youtube' && currentTrack && isPlaying && !isNowPlayingOpen && (
-        <div className="fixed -bottom-96 -right-96 opacity-0 pointer-events-none w-1 h-1 overflow-hidden" aria-hidden="true">
+      {/* Docked Floating Video Player for Continuous Playback on Mobile Safari */}
+      {currentTrack && isPlaying && !isNowPlayingOpen && (
+        <div
+          onClick={() => setIsNowPlayingOpen(true)}
+          className="fixed bottom-[calc(8.5rem+env(safe-area-inset-bottom,0px))] right-3 z-30 w-32 aspect-video rounded-xl overflow-hidden shadow-2xl border border-rose-500/30 bg-black cursor-pointer active:scale-95 transition-transform"
+          title="タップしてプレイヤーを展開"
+        >
           <iframe
-            src={`https://www.youtube-nocookie.com/embed/${currentTrack.id}?autoplay=1&enablejsapi=1`}
-            title="Background Audio"
-            allow="autoplay; encrypted-media"
+            src={`https://www.youtube-nocookie.com/embed/${currentTrack.id}?autoplay=1&enablejsapi=1&playsinline=1&rel=0`}
+            title="Now Playing Mini Video"
+            className="w-full h-full border-0 pointer-events-none"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           />
         </div>
       )}

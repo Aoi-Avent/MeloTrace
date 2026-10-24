@@ -236,8 +236,9 @@ export const LibraryView: React.FC = () => {
                 >
                   <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-slate-800 border border-white/5">
                     <img
-                      src={track.thumbnailUrl}
+                      src={`https://img.youtube.com/vi/${track.id}/mqdefault.jpg`}
                       alt={track.title}
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />

@@ -2,7 +2,7 @@ import { MusicTrack, Playlist } from '../types/music';
 
 export const DEMO_TRACKS: MusicTrack[] = [
   {
-    id: 'by4SYYWlhEs',
+    id: 'ZRtdQ81jPUQ',
     title: 'アイドル (Idol)',
     artist: 'YOASOBI',
     genre: 'アニメ・ボカロ',
@@ -11,7 +11,7 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-23 21:15',
     firstPlayed: '2023-04-12 18:30',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/by4SYYWlhEs/hqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/ZRtdQ81jPUQ/mqdefault.jpg',
     lyrics: `[00:00.00]無敵の笑顔で荒らすメディア
 [00:03.10]知りたいその秘密ミステリアス
 [00:06.20]抜けてるとこさえ彼女のエリア
@@ -34,7 +34,7 @@ export const DEMO_TRACKS: MusicTrack[] = [
 [00:57.20]君は完璧で究極のアイドル`
   },
   {
-    id: '0YF8vecQWYs',
+    id: 'GEIf9Dp6GgQ',
     title: '夜に駆ける (Racing into the Night)',
     artist: 'YOASOBI',
     genre: 'J-POP',
@@ -43,7 +43,7 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-22 19:40',
     firstPlayed: '2020-01-15 22:10',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/0YF8vecQWYs/hqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/GEIf9Dp6GgQ/mqdefault.jpg',
     lyrics: `[00:00.00]沈むように溶けてゆくように
 [00:05.10]二人だけの空が広がる夜に
 [00:12.20]「さよなら」だけだった
@@ -65,7 +65,7 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-21 14:20',
     firstPlayed: '2018-03-01 10:00',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/SX_ViT4Ra7k/hqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/SX_ViT4Ra7k/mqdefault.jpg',
     lyrics: `[00:00.00]夢ならばどれほどよかったでしょう
 [00:08.50]未だにあなたのことを夢にみる
 [00:16.10]忘れた物を取りに帰るように
@@ -76,7 +76,7 @@ export const DEMO_TRACKS: MusicTrack[] = [
 [00:53.20]あなたがいなきゃ永遠に昏いまま`
   },
   {
-    id: 'f04z12v7cI8',
+    id: 'UM9XNpgrqVk',
     title: '怪獣の花唄',
     artist: 'Vaundy',
     genre: 'ロック・バンド',
@@ -85,7 +85,7 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-23 18:10',
     firstPlayed: '2021-08-10 16:30',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/f04z12v7cI8/hqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/UM9XNpgrqVk/mqdefault.jpg',
     lyrics: `[00:00.00]思い出すのは君の歌
 [00:05.00]会話よりも鮮明だ
 [00:09.50]どこへ行こうか
@@ -97,7 +97,7 @@ export const DEMO_TRACKS: MusicTrack[] = [
 [00:33.20]歩き出す僕ら`
   },
   {
-    id: 'O1bhZgkC4Gw',
+    id: 'TQ8WlA2GXbk',
     title: 'Pretender',
     artist: 'Official髭男dism',
     genre: 'J-POP',
@@ -106,10 +106,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-20 23:05',
     firstPlayed: '2019-05-18 12:40',
     isFavorite: false,
-    thumbnailUrl: 'https://i.ytimg.com/vi/O1bhZgkC4Gw/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/TQ8WlA2GXbk/mqdefault.jpg'
   },
   {
-    id: '9qT0sWpD3_0',
+    id: 'hN5MBlGv2Ac',
     title: 'Subtitle',
     artist: 'Official髭男dism',
     genre: 'J-POP',
@@ -118,10 +118,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-22 08:30',
     firstPlayed: '2022-10-15 19:20',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/9qT0sWpD3_0/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/hN5MBlGv2Ac/mqdefault.jpg'
   },
   {
-    id: 'Qp3b-RXtz4w',
+    id: 'YnSW8ian29w',
     title: '踊 (Odo)',
     artist: 'Ado',
     genre: 'J-POP',
@@ -130,10 +130,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-23 15:45',
     firstPlayed: '2021-05-02 20:00',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/Qp3b-RXtz4w/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/YnSW8ian29w/mqdefault.jpg'
   },
   {
-    id: 'sflYhGv-n-w',
+    id: 'Qp3b-RXtz4w',
     title: 'うっせぇわ (Usseewa)',
     artist: 'Ado',
     genre: 'J-POP',
@@ -142,22 +142,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-09-15 11:20',
     firstPlayed: '2020-10-24 17:15',
     isFavorite: false,
-    thumbnailUrl: 'https://i.ytimg.com/vi/sflYhGv-n-w/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/Qp3b-RXtz4w/mqdefault.jpg'
   },
   {
-    id: 'v7bnOxV4jAc',
-    title: '喜劇 (Comedy)',
-    artist: '星野源',
-    genre: 'J-POP',
-    playCount: 82,
-    duration: 235,
-    lastPlayed: '2026-10-19 12:30',
-    firstPlayed: '2022-04-10 09:00',
-    isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/v7bnOxV4jAc/hqdefault.jpg'
-  },
-  {
-    id: 'dFf4AgBNR1E',
+    id: 'ony539T074w',
     title: '白日 (Hakujitsu)',
     artist: 'King Gnu',
     genre: 'ロック・バンド',
@@ -166,10 +154,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-22 22:50',
     firstPlayed: '2019-03-05 21:00',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/dFf4AgBNR1E/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/ony539T074w/mqdefault.jpg'
   },
   {
-    id: 'F5ym7aI90bE',
+    id: 'fhzKLBZJC3w',
     title: 'SPECIALZ',
     artist: 'King Gnu',
     genre: 'ロック・バンド',
@@ -178,10 +166,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-23 20:10',
     firstPlayed: '2023-09-02 00:30',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/F5ym7aI90bE/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/fhzKLBZJC3w/mqdefault.jpg'
   },
   {
-    id: '9dyNA2Om850',
+    id: 'TcLLpZBWsck',
     title: 'きらり (Kirari)',
     artist: '藤井風',
     genre: 'J-POP',
@@ -190,22 +178,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-23 07:45',
     firstPlayed: '2021-05-08 14:10',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/9dyNA2Om850/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/TcLLpZBWsck/mqdefault.jpg'
   },
   {
-    id: 'TcLLPR0vcEl',
-    title: '死ぬのがいいわ (Shinunoga E-Wa)',
-    artist: '藤井風',
-    genre: 'J-POP',
-    playCount: 78,
-    duration: 188,
-    lastPlayed: '2026-10-18 23:15',
-    firstPlayed: '2020-06-12 19:30',
-    isFavorite: false,
-    thumbnailUrl: 'https://i.ytimg.com/vi/TcLLPR0vcEl/hqdefault.jpg'
-  },
-  {
-    id: 'x8VYWazR5mE',
+    id: 'GJI4Gv7NbmE',
     title: '秒針を噛む',
     artist: 'ずっと真夜中でいいのに。',
     genre: 'J-POP',
@@ -214,22 +190,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-21 17:30',
     firstPlayed: '2018-06-15 18:20',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/x8VYWazR5mE/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/GJI4Gv7NbmE/mqdefault.jpg'
   },
   {
-    id: 'Atvsg_zogvw',
-    title: 'お勉強しといてよ',
-    artist: 'ずっと真夜中でいいのに。',
-    genre: 'J-POP',
-    playCount: 68,
-    duration: 265,
-    lastPlayed: '2026-10-14 16:40',
-    firstPlayed: '2020-05-18 21:00',
-    isFavorite: false,
-    thumbnailUrl: 'https://i.ytimg.com/vi/Atvsg_zogvw/hqdefault.jpg'
-  },
-  {
-    id: 'j1hft9WQI9U',
+    id: '-VKIqrvVOpo',
     title: 'ただ君に晴れ',
     artist: 'ヨルシカ',
     genre: 'J-POP',
@@ -238,10 +202,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-22 13:10',
     firstPlayed: '2018-05-10 15:40',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/j1hft9WQI9U/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/-VKIqrvVOpo/mqdefault.jpg'
   },
   {
-    id: 'DlyG6MAKUWk',
+    id: 'Sw1Flgub9s8',
     title: '春泥棒',
     artist: 'ヨルシカ',
     genre: 'J-POP',
@@ -250,10 +214,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-17 10:20',
     firstPlayed: '2021-01-20 22:00',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/DlyG6MAKUWk/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/Sw1Flgub9s8/mqdefault.jpg'
   },
   {
-    id: 'MpYy6wwqxoo',
+    id: 'Jy-QS27q7lA',
     title: 'ケセラセラ',
     artist: 'Mrs. GREEN APPLE',
     genre: 'J-POP',
@@ -262,22 +226,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-23 11:20',
     firstPlayed: '2023-05-01 12:00',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/MpYy6wwqxoo/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/Jy-QS27q7lA/mqdefault.jpg'
   },
   {
-    id: 'W9S_P6v17r0',
-    title: '青と夏',
-    artist: 'Mrs. GREEN APPLE',
-    genre: 'ロック・バンド',
-    playCount: 71,
-    duration: 278,
-    lastPlayed: '2026-08-28 15:30',
-    firstPlayed: '2018-08-05 14:15',
-    isFavorite: false,
-    thumbnailUrl: 'https://i.ytimg.com/vi/W9S_P6v17r0/hqdefault.jpg'
-  },
-  {
-    id: 'gz3m_fWlG3o',
+    id: 'kzZ6KXDM1RI',
     title: 'ドライフラワー',
     artist: '優里',
     genre: 'J-POP',
@@ -286,10 +238,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-09-20 20:40',
     firstPlayed: '2020-11-05 18:00',
     isFavorite: false,
-    thumbnailUrl: 'https://i.ytimg.com/vi/gz3m_fWlG3o/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/kzZ6KXDM1RI/mqdefault.jpg'
   },
   {
-    id: '9L3Xv_9X8nQ',
+    id: 'T_lC2O1oIew',
     title: 'Plastic Love (プラスティック・ラブ)',
     artist: '竹内まりや',
     genre: 'シティポップ',
@@ -298,10 +250,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-21 01:15',
     firstPlayed: '2019-07-10 23:40',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/9L3Xv_9X8nQ/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/T_lC2O1oIew/mqdefault.jpg'
   },
   {
-    id: '3bNITQR4Uso',
+    id: 'nuU2YHtxMik',
     title: '真夜中のドア〜Stay With Me',
     artist: '松原みき',
     genre: 'シティポップ',
@@ -310,59 +262,11 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-23 00:40',
     firstPlayed: '2020-12-05 02:10',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/3bNITQR4Uso/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/nuU2YHtxMik/mqdefault.jpg'
   },
   {
-    id: 'jfKfPfyJRdk',
-    title: 'lofi hip hop radio - beats to relax/study to',
-    artist: 'Lofi Girl',
-    genre: '作業用・Lo-Fi',
-    playCount: 160,
-    duration: 7200,
-    lastPlayed: '2026-10-23 16:00',
-    firstPlayed: '2020-03-01 10:00',
-    isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/jfKfPfyJRdk/hqdefault.jpg'
-  },
-  {
-    id: 'n61ULEU7SU0',
-    title: 'Tokyo Rain - Chill Lofi Beats (作業用BGM)',
-    artist: 'ChillHop Japan',
-    genre: '作業用・Lo-Fi',
-    playCount: 54,
-    duration: 3600,
-    lastPlayed: '2026-10-19 22:30',
-    firstPlayed: '2022-09-12 21:00',
-    isFavorite: false,
-    thumbnailUrl: 'https://i.ytimg.com/vi/n61ULEU7SU0/hqdefault.jpg'
-  },
-  {
-    id: 'O4GZ0J4P3-M',
-    title: 'グッバイ宣言',
-    artist: 'Chinozo',
-    genre: 'アニメ・ボカロ',
-    playCount: 62,
-    duration: 185,
-    lastPlayed: '2026-10-15 17:20',
-    firstPlayed: '2021-02-14 16:00',
-    isFavorite: false,
-    thumbnailUrl: 'https://i.ytimg.com/vi/O4GZ0J4P3-M/hqdefault.jpg'
-  },
-  {
-    id: '1eIq_v4g9G4',
-    title: 'フォニイ (phony)',
-    artist: 'ツミキ feat.可不',
-    genre: 'アニメ・ボカロ',
-    playCount: 77,
-    duration: 194,
-    lastPlayed: '2026-10-20 18:40',
-    firstPlayed: '2021-06-25 19:30',
-    isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/1eIq_v4g9G4/hqdefault.jpg'
-  },
-  {
-    id: 'dHXC_ahjtSE',
-    title: '丸ノ内サディスティック (Marunouchi Sadistic)',
+    id: 'jNQXAC9IVRw',
+    title: '丸ノ内サディスティック',
     artist: '椎名林檎',
     genre: 'ロック・バンド',
     playCount: 88,
@@ -370,10 +274,10 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-22 23:45',
     firstPlayed: '2019-01-10 18:20',
     isFavorite: true,
-    thumbnailUrl: 'https://i.ytimg.com/vi/dHXC_ahjtSE/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/jNQXAC9IVRw/mqdefault.jpg'
   },
   {
-    id: 'p7S1Z-hI1Hk',
+    id: 'iqEr3P78fz8',
     title: '水平線 (Suiheisen)',
     artist: 'back number',
     genre: 'J-POP',
@@ -382,7 +286,19 @@ export const DEMO_TRACKS: MusicTrack[] = [
     lastPlayed: '2026-10-12 20:15',
     firstPlayed: '2020-08-20 19:00',
     isFavorite: false,
-    thumbnailUrl: 'https://i.ytimg.com/vi/p7S1Z-hI1Hk/hqdefault.jpg'
+    thumbnailUrl: 'https://img.youtube.com/vi/iqEr3P78fz8/mqdefault.jpg'
+  },
+  {
+    id: 'S0ySTjZi-Ag',
+    title: 'グッバイ宣言',
+    artist: 'Chinozo',
+    genre: 'アニメ・ボカロ',
+    playCount: 62,
+    duration: 185,
+    lastPlayed: '2026-10-15 17:20',
+    firstPlayed: '2021-02-14 16:00',
+    isFavorite: false,
+    thumbnailUrl: 'https://img.youtube.com/vi/S0ySTjZi-Ag/mqdefault.jpg'
   }
 ];
 
@@ -390,21 +306,21 @@ export const DEMO_PLAYLISTS: Playlist[] = [
   {
     id: 'favorites',
     name: 'お気に入りヘビロテ',
-    trackIds: ['by4SYYWlhEs', '0YF8vecQWYs', 'f04z12v7cI8', '9dyNA2Om850', 'dFf4AgBNR1E', '3bNITQR4Uso'],
+    trackIds: ['ZRtdQ81jPUQ', 'GEIf9Dp6GgQ', 'UM9XNpgrqVk', 'TcLLpZBWsck', 'ony539T074w', 'nuU2YHtxMik'],
     createdAt: '2026-01-01 12:00',
     updatedAt: '2026-10-23 21:15'
   },
   {
     id: 'work_focus',
     name: '作業・夜の集中用',
-    trackIds: ['jfKfPfyJRdk', 'n61ULEU7SU0', '9L3Xv_9X8nQ', '3bNITQR4Uso', 'v7bnOxV4jAc'],
+    trackIds: ['T_lC2O1oIew', 'nuU2YHtxMik', 'Sw1Flgub9s8', 'jNQXAC9IVRw'],
     createdAt: '2026-03-15 14:00',
     updatedAt: '2026-10-23 16:00'
   },
   {
     id: 'high_energy',
     name: 'テンション爆上げ',
-    trackIds: ['by4SYYWlhEs', 'Qp3b-RXtz4w', 'F5ym7aI90bE', 'f04z12v7cI8', '1eIq_v4g9G4'],
+    trackIds: ['ZRtdQ81jPUQ', 'YnSW8ian29w', 'fhzKLBZJC3w', 'UM9XNpgrqVk', 'S0ySTjZi-Ag'],
     createdAt: '2026-05-10 09:30',
     updatedAt: '2026-10-23 20:10'
   }
