@@ -12,6 +12,7 @@ export interface MusicTrack {
   thumbnailUrl: string;
   lyrics?: string; // LRC formatted or plain text
   notes?: string;
+  isDemo?: boolean;
 }
 
 export interface Playlist {
@@ -24,9 +25,18 @@ export interface Playlist {
 
 export type PlayMode = 'stream' | 'youtube';
 export type RepeatMode = 'off' | 'all' | 'one';
-export type ActiveTab = 'home' | 'library' | 'analytics' | 'import';
+export type ActiveTab = 'home' | 'radio' | 'library' | 'search' | 'analytics' | 'import';
 
 export interface LyricLine {
   time: number; // in seconds
   text: string;
+}
+
+export interface QuickMixItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  category: 'mood' | 'genre' | 'history' | 'activity';
+  color: string;
+  filterFn: (tracks: MusicTrack[]) => MusicTrack[];
 }

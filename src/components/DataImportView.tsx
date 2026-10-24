@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Sparkles,
   Upload,
-  FolderDown,
+  ArrowDownToLine,
   FileText,
   CheckCircle2,
   AlertCircle,
@@ -10,12 +10,16 @@ import {
   Download,
   ExternalLink,
   HelpCircle,
-  Sliders,
   Check,
-  Plus
+  Plus,
+  ShieldCheck,
+  Ban,
+  Filter,
+  Volume2,
+  ShieldAlert,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
-import { parseTakeoutJson, isLikelyMusic, classifyMusicGenre, extractArtist, cleanSongTitle, extractYouTubeId } from '../utils/parser';
+import { parseTakeoutJson } from '../utils/parser';
 import { MusicTrack, ActiveTab } from '../types/music';
 
 interface DataImportViewProps {
@@ -25,11 +29,18 @@ interface DataImportViewProps {
 export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) => {
   const {
     tracks,
+    activeTracks,
+    isDemoMode,
+    bannedArtists,
+    bannedTracks,
+    strictnessMode,
+    setStrictnessMode,
+    unbanArtist,
+    unbanTrack,
+    clearAllBans,
     loadDemoData,
     importTracks,
     clearAllData,
-    playMode,
-    setPlayMode,
     addSingleTrackByUrl,
   } = usePlayer();
 
@@ -38,6 +49,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [demoLoadedSuccess, setDemoLoadedSuccess] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showBannedModal, setShowBannedModal] = useState(false);
 
   // Single URL add state
   const [quickUrl, setQuickUrl] = useState('');
@@ -50,7 +62,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
     setTimeout(() => {
       setDemoLoadedSuccess(false);
       setActiveTab('home');
-    }, 1200);
+    }, 1000);
   };
 
   // Handle file upload
@@ -69,11 +81,10 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       let extractedTracks: MusicTrack[] = [];
 
       if (fileName.endsWith('.json')) {
-        // Parse Google Takeout watch-history.json
-        extractedTracks = parseTakeoutJson(text);
+        // Parse Google Takeout watch-history.json with current strictness
+        extractedTracks = parseTakeoutJson(text, strictnessMode);
       } else {
-        // Fallback or HTML / text parser
-        // Look for youtube links in text
+        // Fallback: look for youtube links in text/html
         const matches = text.matchAll(/watch\?v=([a-zA-Z0-9_-]{11})/g);
         const map = new Map<string, number>();
         for (const m of matches) {
@@ -83,8 +94,8 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
 
         extractedTracks = Array.from(map.entries()).map(([id, count]) => ({
           id,
-          title: `YouTube Music (${id})`,
-          artist: '取り込み動画',
+          title: `YouTube Track (${id})`,
+          artist: '取り込み楽曲',
           genre: 'J-POP',
           playCount: count,
           lastPlayed: new Date().toISOString().replace('T', ' ').slice(0, 16),
@@ -96,9 +107,13 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
 
       if (extractedTracks.length > 0) {
         importTracks(extractedTracks);
-        setImportResult(`解析が完了しました！ ${extractedTracks.length}曲の音楽データを新しく追加しました。`);
+        setImportResult(
+          `インポート成功！切り抜きや非音楽動画を高精度にフィルタリングし、${extractedTracks.length}曲 の純粋な音楽・ボカロ・カバー楽曲をライブラリに反映しました。`
+        );
       } else {
-        setErrorMessage('音楽データの検出ができませんでした。ファイルの形式を確認してください（Google Takeoutの watch-history.json 等に対応しています）。');
+        setErrorMessage(
+          '音楽データが検出されませんでした。Google Takeoutの watch-history.json ファイルをお選びください。'
+        );
       }
     } catch (err: any) {
       console.error(err);
@@ -116,7 +131,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
     if (ok) {
       setQuickAddSuccess(true);
       setQuickUrl('');
-      setTimeout(() => setQuickAddSuccess(false), 1500);
+      setTimeout(() => setQuickAddSuccess(false), 1200);
     } else {
       alert('有効なYouTubeのURLを入力してください。');
     }
@@ -134,96 +149,211 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
   };
 
   return (
-    <div className="pb-36 pt-4 px-4 max-w-lg mx-auto">
+    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto">
       {/* Top Header */}
-      <header className="mb-5">
-        <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-          <FolderDown className="w-5 h-5 text-rose-400" />
-          <span>データの取り込み・管理</span>
+      <header className="pt-2 pb-1 mb-4">
+        <h1 className="text-3xl font-extrabold text-white tracking-tight">
+          取込 & フィルター管理
         </h1>
-        <p className="text-xs text-slate-400 mt-0.5">
-          スマホだけで簡単！履歴ファイルの読み込みや体験用データの反映
+        <p className="text-xs text-[#8e8e93] mt-0.5">
+          高精度な音楽判定・除外（Ban）設定・広告抑制・データ管理
         </p>
       </header>
 
-      {/* SECTION 1: ONE-TAP DEMO DATA (体験してみる) */}
-      <section className="mb-6 rounded-3xl bg-gradient-to-br from-rose-900/40 via-purple-900/30 to-slate-900/90 border border-rose-500/30 p-5 shadow-2xl relative overflow-hidden">
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5" />
+      {/* Current Data & Ban Status Bar */}
+      <div className="mb-5 p-3.5 rounded-xl apple-card border border-white/10 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <ShieldCheck className="w-5 h-5 text-[#30d158]" />
+          <div>
+            <p className="text-xs font-bold text-white">
+              {isDemoMode ? 'サンプル体験モード中' : 'マイデータ運用中'}
+            </p>
+            <p className="text-[11px] text-[#8e8e93]">
+              有効楽曲: {activeTracks.length}曲
+              {bannedArtists.length + bannedTracks.length > 0 &&
+                ` (除外: ${bannedArtists.length + bannedTracks.length}件)`}
+            </p>
           </div>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 uppercase tracking-widest">
-            おすすめ · 準備ゼロ
-          </span>
         </div>
 
-        <h3 className="text-base font-bold text-white tracking-tight mb-1">
-          今すぐ体験してみる（サンプル全データをロード）
-        </h3>
-        <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-          手元に履歴ファイルがなくても大丈夫！YOASOBI、米津玄師、Vaundy、Ado、King Gnuなどの代表曲とリアルな視聴データ（約120曲）を一瞬で読み込んで、すべての機能をお試しいただけます。
+        {bannedArtists.length + bannedTracks.length > 0 && (
+          <button
+            onClick={() => setShowBannedModal(true)}
+            className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#fa2d48]/20 text-[#fa2d48] hover:bg-[#fa2d48]/30 transition-colors"
+          >
+            Banリスト管理
+          </button>
+        )}
+      </div>
+
+      {/* SECTION 1: HIGH-PRECISION MUSIC FILTER STRICTNESS */}
+      <section className="mb-6 p-5 rounded-2xl apple-card">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+            <Filter className="w-4 h-4 text-[#fa2d48]" />
+            <span>音楽判定の厳格度（切り抜き・雑談の徹底除外）</span>
+          </h3>
+        </div>
+        <p className="text-xs text-[#8e8e93] mb-3 leading-relaxed">
+          YouTube履歴から「切り抜き」「まとめ」「雑談」「ゲーム実況」「配信アーカイブ」など不快な動画をどれくらい厳しく除外するかを設定できます。
         </p>
 
-        <button
-          onClick={handleLoadDemo}
-          className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-500 to-violet-600 hover:brightness-110 active:scale-98 text-white font-bold text-sm shadow-[0_4px_20px_rgba(255,45,120,0.4)] flex items-center justify-center gap-2 transition-all"
-        >
-          {demoLoadedSuccess ? (
-            <>
-              <Check className="w-4 h-4" />
-              <span>読み込みました！ホームへ移動します...</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              <span>ワンタップで体験データを読み込む</span>
-            </>
-          )}
-        </button>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            {
+              id: 'strict',
+              title: '厳格モード',
+              desc: '公式MV・音源のみ (切り抜き徹底排除)',
+            },
+            {
+              id: 'standard',
+              title: '標準モード',
+              desc: 'MV・ボカロ・歌ってみた・Cover',
+            },
+            {
+              id: 'all',
+              title: '全件モード',
+              desc: '全履歴をそのまま保持',
+            },
+          ].map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => setStrictnessMode(mode.id as any)}
+              className={`p-2.5 rounded-xl border text-left transition-all ${
+                strictnessMode === mode.id
+                  ? 'border-[#fa2d48] bg-[#fa2d48]/15 text-white'
+                  : 'border-white/5 bg-white/[0.03] text-[#8e8e93] hover:text-white'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold">{mode.title}</span>
+                {strictnessMode === mode.id && (
+                  <Check className="w-3.5 h-3.5 text-[#fa2d48]" />
+                )}
+              </div>
+              <p className="text-[10px] opacity-75 line-clamp-2 leading-tight">
+                {mode.desc}
+              </p>
+            </button>
+          ))}
+        </div>
       </section>
 
-      {/* SECTION 2: FILE UPLOAD */}
-      <section className="mb-6 p-5 rounded-3xl glass-panel">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-            <Upload className="w-4 h-4 text-violet-400" />
-            <span>自分のYouTube履歴を取り込む</span>
-          </h3>
-          <button
-            onClick={() => setShowHelp(!showHelp)}
-            className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span>手順ガイド</span>
-          </button>
-        </div>
-
-        {/* Step by step guide if toggled */}
-        {showHelp && (
-          <div className="mb-4 p-3.5 rounded-2xl bg-white/5 border border-white/10 text-xs text-slate-300 flex flex-col gap-2 leading-relaxed">
-            <p className="font-bold text-rose-300">Googleから履歴をダウンロードする方法:</p>
-            <ol className="list-decimal list-inside space-y-1 text-slate-300">
-              <li>スマホのブラウザで「Google データ エクスポート (Takeout)」を開く</li>
-              <li>「YouTube と YouTube Music」のみを選択して次へ進む</li>
-              <li>エクスポートされたZIP内の <code className="text-rose-300 font-mono">watch-history.json</code> を下のボタンで選択するだけ！</li>
-            </ol>
-            <a
-              href="https://takeout.google.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-rose-400 hover:text-rose-300 font-semibold mt-1"
-            >
-              <span>Google Takeoutを開く</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-        )}
-
-        <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-          Google Takeoutの <code className="text-slate-300">watch-history.json</code> やマイアクティビティのファイルをスマホから選択してください。自動で音楽動画だけを抽出・分類します。
+      {/* SECTION 2: AD SUPPRESSION ARCHITECTURE */}
+      <section className="mb-6 p-5 rounded-2xl apple-card">
+        <h3 className="text-sm font-bold text-white tracking-tight mb-2 flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-[#30d158]" />
+          <span>広告ブロック & 広告なし再生の仕組み</span>
+        </h3>
+        <p className="text-xs text-[#8e8e93] mb-3 leading-relaxed">
+          アドオンが入っていないiPhoneのSafariやスマホ環境でも広告を最小化するよう特別設計されています。
         </p>
 
-        {/* File input button */}
+        <div className="flex flex-col gap-2 text-xs text-[#d1d1d6]">
+          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5">
+            <span className="font-bold text-white block mb-0.5">1. YouTube NoCookie (プライバシー保護モード)</span>
+            <span className="text-[11px] text-[#8e8e93]">
+              ターゲティング広告トラッカーを遮断する専用ホスト経由でプレイヤーを初期化し、割り込み広告の頻度を劇的に引き下げています。
+            </span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5">
+            <span className="font-bold text-white block mb-0.5">2. バックグラウンドキュー＆シームレス自動送り</span>
+            <span className="text-[11px] text-[#8e8e93]">
+              プレイヤー枠を破棄せず1インスタンスで動画IDのみを高速切替するため、連続再生時の広告読み込みを大幅に抑制しています。
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 3: GOOGLE TAKEOUT JSON IMPORT */}
+      {/* SECTION 2: JSON BACKUP & RESTORE */}
+      <section className="mb-6 p-5 rounded-2xl apple-card border border-white/10">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+            <ArrowDownToLine className="w-4 h-4 text-[#fa2d48]" />
+            <span>ライブラリの書き出しと読み込み (JSON)</span>
+          </h3>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#d1d1d6] font-semibold">
+            JSON
+          </span>
+        </div>
+        <p className="text-xs text-[#8e8e93] mb-4 leading-relaxed">
+          現在のライブラリデータをJSON形式で書き出したり、バックアップファイルから楽曲リストを読み込んで復元できます。
+        </p>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <button
+            onClick={handleExportJson}
+            className="py-3 px-3 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md shadow-[#fa2d48]/20"
+          >
+            <Download className="w-4 h-4" />
+            <span>ライブラリを書き出す</span>
+          </button>
+
+          <label className="py-3 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer text-center">
+            <Upload className="w-4 h-4 text-[#30d158]" />
+            <span>JSONファイルを読み込む</span>
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+          </label>
+        </div>
+      </section>
+
+      {/* SECTION 3: 2-STEP GOOGLE TAKEOUT ONBOARDING */}
+      <section className="mb-6 p-5 rounded-2xl apple-card">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+            <Upload className="w-4 h-4 text-[#fa2d48]" />
+            <span>Google Takeout（自分のYouTube全履歴を取り込む）</span>
+          </h3>
+        </div>
+
+        <p className="text-xs text-[#8e8e93] mb-3 leading-relaxed">
+          YouTube公式からエクスポートした <code className="text-[#d1d1d6]">watch-history.json</code> を読み込み、切り抜きや雑談を排除してあなた専用のApple Musicを作ります。
+        </p>
+
+        {/* 2-Step Frictionless Guide Card */}
+        <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 mb-4 flex flex-col gap-3">
+          <div className="flex items-start gap-2.5">
+            <div className="w-5 h-5 rounded-full bg-[#fa2d48] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+              1
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white">YouTube専用の直行リンクを開く</p>
+              <p className="text-[11px] text-[#8e8e93] mt-0.5">
+                あらかじめ「YouTube」のみが選択された状態で開くため迷いません。
+              </p>
+              <a
+                href="https://takeout.google.com/settings/takeout/custom/youtube"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-[#fa2d48] font-bold mt-1.5 hover:underline"
+              >
+                <span>Google Takeout（YouTube専用）を開く</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+
+          <div className="border-t border-white/5 pt-2 flex items-start gap-2.5">
+            <div className="w-5 h-5 rounded-full bg-white/20 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+              2
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white">ZIP内の watch-history.json を選択</p>
+              <p className="text-[11px] text-[#8e8e93] mt-0.5">
+                ダウンロードされたZIPを展開し、下記のボタンからファイルを選んでください。
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* File Upload Trigger */}
         <label className="block w-full">
           <input
             type="file"
@@ -232,40 +362,71 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
             className="hidden"
             disabled={isLoadingFile}
           />
-          <div className="w-full py-4 px-4 rounded-2xl border-2 border-dashed border-white/20 hover:border-rose-500/50 hover:bg-white/5 active:scale-98 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 text-center">
-            <FileText className="w-6 h-6 text-slate-400" />
+          <div className="w-full py-5 px-4 rounded-xl border border-dashed border-white/20 hover:border-[#fa2d48] hover:bg-white/[0.02] active:scale-[0.99] transition-all cursor-pointer flex flex-col items-center justify-center gap-2 text-center">
+            <FileText className="w-7 h-7 text-[#8e8e93]" />
             <span className="text-xs font-bold text-white">
-              {isLoadingFile ? 'ファイルを解析中...' : 'ファイルを選択して取り込む'}
+              {isLoadingFile ? '高精度フィルタリング解析中...' : 'watch-history.json を選んで取り込む'}
             </span>
-            <span className="text-[10px] text-slate-500">
-              タップしてスマホのファイル（.json / .html / .mhtml）を選ぶ
+            <span className="text-[10px] text-[#8e8e93]">
+              ボカロ・歌ってみた・J-POPを自動分類します
             </span>
           </div>
         </label>
 
-        {/* Feedback message */}
         {importResult && (
-          <div className="mt-3 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+          <div className="mt-3 p-3 rounded-xl bg-[#30d158]/15 border border-[#30d158]/30 text-[#30d158] text-xs flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{importResult}</span>
           </div>
         )}
         {errorMessage && (
-          <div className="mt-3 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+          <div className="mt-3 p-3 rounded-xl bg-[#fa2d48]/15 border border-[#fa2d48]/30 text-[#fa2d48] text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
       </section>
 
-      {/* SECTION 3: QUICK URL ADD */}
-      <section className="mb-6 p-5 rounded-3xl glass-panel">
-        <h3 className="text-sm font-bold text-white tracking-tight mb-2 flex items-center gap-2">
-          <Plus className="w-4 h-4 text-rose-400" />
-          <span>YouTubeのURLから1曲追加</span>
+      {/* SECTION 4: ONE-TAP DEMO DATA */}
+      <section className="mb-6 p-5 rounded-2xl apple-card">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#ffd60a]" />
+            <span>サンプル体験データを読み込む</span>
+          </h3>
+          <span className="text-[10px] text-[#8e8e93]">お試し用</span>
+        </div>
+
+        <p className="text-xs text-[#8e8e93] mb-4 leading-relaxed">
+          YOASOBI、ボカロ神曲（バルーン、DECO*27、蝶々P、ピノキオピー等）を含む代表曲サンプルをワンタップでロードできます。
+        </p>
+
+        <button
+          onClick={handleLoadDemo}
+          className="w-full py-3 px-4 rounded-xl bg-white/10 hover:bg-white/20 active:scale-98 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all"
+        >
+          {demoLoadedSuccess ? (
+            <>
+              <Check className="w-4 h-4 text-[#30d158]" />
+              <span>体験データを反映しました！</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4 text-[#ffd60a]" />
+              <span>体験データをロードする</span>
+            </>
+          )}
+        </button>
+      </section>
+
+      {/* SECTION 5: QUICK URL ADD */}
+      <section className="mb-6 p-5 rounded-2xl apple-card">
+        <h3 className="text-sm font-bold text-white tracking-tight mb-1 flex items-center gap-2">
+          <Plus className="w-4 h-4 text-[#fa2d48]" />
+          <span>YouTubeのURLから曲を即時追加</span>
         </h3>
-        <p className="text-xs text-slate-400 mb-3 leading-relaxed">
-          お気に入りの曲のYouTubeリンクを貼るだけで、すぐにライブラリに追加できます。
+        <p className="text-xs text-[#8e8e93] mb-3 leading-relaxed">
+          お気に入りの曲の動画URLを貼るだけで、ボカロPやカバー名義も自動抽出して登録されます。
         </p>
 
         <form onSubmit={handleQuickAdd} className="flex gap-2">
@@ -274,112 +435,135 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
             placeholder="https://youtu.be/... または watch?v=..."
             value={quickUrl}
             onChange={(e) => setQuickUrl(e.target.value)}
-            className="flex-1 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+            className="flex-1 px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white placeholder-[#8e8e93] focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
           />
           <button
             type="submit"
-            className="px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 active:scale-95 text-white text-xs font-bold shrink-0 transition-all flex items-center gap-1"
+            className="px-4 py-2 rounded-xl bg-[#fa2d48] text-white text-xs font-semibold hover:bg-[#ff3b56] active:scale-95 transition-all shrink-0"
           >
-            {quickAddSuccess ? (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                <span>追加済</span>
-              </>
-            ) : (
-              <span>追加</span>
-            )}
+            {quickAddSuccess ? '追加済' : '追加'}
           </button>
         </form>
       </section>
 
-      {/* SECTION 4: SETTINGS & PLAYBACK MODE */}
-      <section className="mb-6 p-5 rounded-3xl glass-panel">
-        <h3 className="text-sm font-bold text-white tracking-tight mb-3 flex items-center gap-2">
-          <Sliders className="w-4 h-4 text-slate-400" />
-          <span>再生プレイヤー設定</span>
-        </h3>
-
-        <div className="flex flex-col gap-2">
-          <label
-            onClick={() => setPlayMode('youtube')}
-            className={`flex items-start gap-3 p-3 rounded-2xl cursor-pointer border transition-all ${
-              playMode === 'youtube'
-                ? 'bg-rose-500/10 border-rose-500/40'
-                : 'bg-white/5 border-white/5 hover:bg-white/10'
-            }`}
-          >
-            <input
-              type="radio"
-              name="playMode"
-              checked={playMode === 'youtube'}
-              onChange={() => setPlayMode('youtube')}
-              className="mt-1 accent-rose-500"
-            />
-            <div>
-              <p className="text-xs font-bold text-white">
-                YouTube内蔵プレイヤー (推奨・確実再生)
-              </p>
-              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                YouTubeの公式埋め込みプレイヤーを使用します。100%確実にすべての楽曲を映像・高音質で再生できます。
-              </p>
-            </div>
-          </label>
-
-          <label
-            onClick={() => setPlayMode('stream')}
-            className={`flex items-start gap-3 p-3 rounded-2xl cursor-pointer border transition-all ${
-              playMode === 'stream'
-                ? 'bg-rose-500/10 border-rose-500/40'
-                : 'bg-white/5 border-white/5 hover:bg-white/10'
-            }`}
-          >
-            <input
-              type="radio"
-              name="playMode"
-              checked={playMode === 'stream'}
-              onChange={() => setPlayMode('stream')}
-              className="mt-1 accent-rose-500"
-            />
-            <div>
-              <p className="text-xs font-bold text-white">
-                バックグラウンド音声ストリーム (軽量・通信節約)
-              </p>
-              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                音声のみを取得して&lt;audio&gt;で再生します。画面ロック中も聴きやすく通信量を大幅に節約できます。
-              </p>
-            </div>
-          </label>
-        </div>
-      </section>
-
-      {/* SECTION 5: BACKUP & DATA RESET */}
-      <section className="p-5 rounded-3xl glass-panel">
+      {/* SECTION 6: BACKUP & RESET */}
+      <section className="p-5 rounded-2xl apple-card">
         <h3 className="text-sm font-bold text-white tracking-tight mb-3">
-          データの保存とリセット
+          バックアップとデータ初期化
         </h3>
 
         <div className="flex flex-col gap-2.5">
           <button
             onClick={handleExportJson}
-            className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 active:scale-98 text-slate-200 text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+            className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 active:scale-98 text-white text-xs font-medium flex items-center justify-center gap-2 transition-all"
           >
-            <Download className="w-3.5 h-3.5 text-slate-400" />
-            <span>ライブラリデータをJSONで保存する</span>
+            <Download className="w-3.5 h-3.5 text-[#8e8e93]" />
+            <span>ライブラリをJSON形式で書き出す</span>
           </button>
 
           <button
             onClick={() => {
-              if (window.confirm('本当にすべての音楽データをリセットしますか？この操作は取り消せません。')) {
+              if (window.confirm('すべての音楽データを消去して初期化しますか？この操作は取り消せません。')) {
                 clearAllData();
               }
             }}
-            className="w-full py-2.5 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 active:scale-98 text-rose-400 text-xs font-semibold flex items-center justify-center gap-2 transition-all border border-rose-500/20"
+            className="w-full py-2.5 px-4 rounded-xl bg-[#fa2d48]/10 hover:bg-[#fa2d48]/20 active:scale-98 text-[#fa2d48] text-xs font-medium flex items-center justify-center gap-2 transition-all"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>全データをリセット（初期化）</span>
           </button>
         </div>
       </section>
+
+      {/* BANNED LIST MODAL */}
+      {showBannedModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl apple-card p-5 shadow-2xl border border-white/10 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div>
+                <h3 className="text-base font-bold text-white">非表示 (Ban) リスト管理</h3>
+                <p className="text-[11px] text-[#8e8e93]">
+                  除外したアーティストや動画を解除・復元できます
+                </p>
+              </div>
+              <button onClick={() => setShowBannedModal(false)} className="text-[#8e8e93]">
+                <Check className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto py-3 flex flex-col gap-3 flex-1 ios-scroll-container">
+              {bannedArtists.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-[#fa2d48] mb-1.5 uppercase tracking-wider">
+                    除外アーティスト ({bannedArtists.length})
+                  </h4>
+                  <div className="flex flex-col gap-1.5">
+                    {bannedArtists.map((artist) => (
+                      <div
+                        key={artist}
+                        className="flex items-center justify-between p-2 rounded-xl bg-white/5 text-xs text-white"
+                      >
+                        <span className="truncate pr-2">{artist}</span>
+                        <button
+                          onClick={() => unbanArtist(artist)}
+                          className="text-[11px] text-[#30d158] font-bold shrink-0 hover:underline"
+                        >
+                          解除
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {bannedTracks.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-[#fa2d48] mb-1.5 uppercase tracking-wider">
+                    除外動画ID ({bannedTracks.length})
+                  </h4>
+                  <div className="flex flex-col gap-1.5">
+                    {bannedTracks.map((id) => (
+                      <div
+                        key={id}
+                        className="flex items-center justify-between p-2 rounded-xl bg-white/5 text-xs text-white"
+                      >
+                        <span className="truncate pr-2 font-mono">{id}</span>
+                        <button
+                          onClick={() => unbanTrack(id)}
+                          className="text-[11px] text-[#30d158] font-bold shrink-0 hover:underline"
+                        >
+                          解除
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {bannedArtists.length === 0 && bannedTracks.length === 0 && (
+                <div className="text-center py-8 text-xs text-[#8e8e93]">
+                  現在除外されているアーティストや動画はありません。
+                </div>
+              )}
+            </div>
+
+            {bannedArtists.length + bannedTracks.length > 0 && (
+              <div className="pt-3 border-t border-white/10">
+                <button
+                  onClick={() => {
+                    if (window.confirm('すべての除外設定を解除しますか？')) {
+                      clearAllBans();
+                    }
+                  }}
+                  className="w-full py-2 rounded-xl bg-white/10 text-xs font-semibold text-white hover:bg-white/15"
+                >
+                  すべての除外を解除
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Pause, SkipForward, Heart, Disc3 } from 'lucide-react';
+import { Play, Pause, SkipForward, Disc3 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 
 export const MiniPlayer: React.FC = () => {
@@ -10,8 +10,8 @@ export const MiniPlayer: React.FC = () => {
     duration,
     togglePlay,
     nextTrack,
-    toggleFavorite,
     setIsNowPlayingOpen,
+    setSelectedArtistForDetail,
   } = usePlayer();
 
   const [imgError, setImgError] = useState(false);
@@ -21,22 +21,14 @@ export const MiniPlayer: React.FC = () => {
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-30 px-3 pb-1">
+    <div className="fixed bottom-[calc(3.75rem+max(env(safe-area-inset-bottom,0px),8px))] left-0 right-0 z-30 px-3">
       <div
         onClick={() => setIsNowPlayingOpen(true)}
-        className="max-w-lg mx-auto relative overflow-hidden rounded-2xl glass-panel shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/10 cursor-pointer active:scale-[0.99] transition-transform"
+        className="max-w-lg mx-auto relative overflow-hidden rounded-2xl apple-pill-miniplayer cursor-pointer active:scale-[0.985] transition-all"
       >
-        {/* Top subtle progress bar */}
-        <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-white/10">
-          <div
-            className="h-full bg-gradient-to-r from-rose-500 to-violet-500 transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        <div className="flex items-center gap-3 p-2.5">
-          {/* Thumbnail with mini equalizer overlay when playing */}
-          <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-slate-800 border border-white/10 shadow-sm flex items-center justify-center">
+        <div className="flex items-center gap-3 p-2">
+          {/* Thumbnail */}
+          <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-[#2c2c2e] border border-white/10 shadow-sm flex items-center justify-center">
             {!imgError ? (
               <img
                 src={`https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`}
@@ -47,65 +39,66 @@ export const MiniPlayer: React.FC = () => {
                 loading="lazy"
               />
             ) : (
-              <Disc3 className="w-6 h-6 text-rose-400 animate-spin" />
+              <Disc3 className="w-6 h-6 text-[#fa2d48] animate-spin" />
             )}
+
+            {/* Micro equalizing bar indicator when playing */}
             {isPlaying && (
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-end justify-center gap-[2px] pb-1.5">
-                <span className="w-[3px] bg-rose-400 rounded-full animate-eq-1" />
-                <span className="w-[3px] bg-rose-400 rounded-full animate-eq-2" />
-                <span className="w-[3px] bg-rose-400 rounded-full animate-eq-3" />
-                <span className="w-[3px] bg-rose-400 rounded-full animate-eq-4" />
+              <div className="absolute inset-0 bg-black/30 backdrop-blur-[0.5px] flex items-end justify-center gap-[2px] pb-1.5">
+                <span className="w-[2.5px] bg-white rounded-full apple-eq-bar-1" />
+                <span className="w-[2.5px] bg-white rounded-full apple-eq-bar-2" />
+                <span className="w-[2.5px] bg-white rounded-full apple-eq-bar-3" />
               </div>
             )}
           </div>
 
-          {/* Track Info */}
+          {/* Track metadata */}
           <div className="flex-1 min-w-0 pr-1">
-            <div className="flex items-center gap-1.5">
-              <h4 className="text-sm font-semibold text-white truncate leading-tight">
-                {currentTrack.title}
-              </h4>
-            </div>
-            <p className="text-xs text-slate-400 truncate mt-0.5">
+            <h4 className="text-xs font-semibold text-white truncate leading-tight tracking-tight">
+              {currentTrack.title}
+            </h4>
+            <p
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedArtistForDetail(currentTrack.artist);
+              }}
+              className="text-[11px] text-[#8e8e93] hover:text-[#fa2d48] hover:underline truncate mt-0.5 cursor-pointer"
+              title="アーティストの曲一覧を開く"
+            >
               {currentTrack.artist}
             </p>
           </div>
 
-          {/* Actions */}
+          {/* iOS Apple Music Controls: Play/Pause and Next */}
           <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
             <button
-              onClick={() => toggleFavorite(currentTrack.id)}
-              className={`p-2 rounded-full transition-colors ${
-                currentTrack.isFavorite
-                  ? 'text-rose-400 fill-rose-400'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="お気に入り"
-              aria-label="お気に入り"
-            >
-              <Heart className={`w-4 h-4 ${currentTrack.isFavorite ? 'fill-current' : ''}`} />
-            </button>
-
-            <button
               onClick={togglePlay}
-              className="w-9 h-9 rounded-full bg-white text-slate-950 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all shadow-md ml-0.5"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:text-white/80 active:scale-90 transition-transform"
               aria-label={isPlaying ? '一時停止' : '再生'}
             >
               {isPlaying ? (
-                <Pause className="w-4 h-4 fill-current" />
+                <Pause className="w-5 h-5 fill-current" />
               ) : (
-                <Play className="w-4 h-4 fill-current ml-0.5" />
+                <Play className="w-5 h-5 fill-current ml-0.5" />
               )}
             </button>
 
             <button
               onClick={nextTrack}
-              className="p-2 text-slate-300 hover:text-white active:scale-95 transition-colors"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white active:scale-90 transition-colors"
               aria-label="次の曲"
             >
-              <SkipForward className="w-4 h-4" />
+              <SkipForward className="w-5 h-5 fill-current" />
             </button>
           </div>
+        </div>
+
+        {/* Subtle bottom progress bar */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/10">
+          <div
+            className="h-full bg-[#fa2d48] transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
         </div>
       </div>
     </div>

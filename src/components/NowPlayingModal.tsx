@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronDown,
+  ChevronRight,
   Heart,
   Play,
   Pause,
@@ -11,13 +12,22 @@ import {
   Repeat1,
   Timer,
   Tv,
-  Mic2,
+  Quote,
   ListMusic,
   Disc3,
-  ExternalLink
+  ExternalLink,
+  Search,
+  Edit3,
+  Ban,
+  Check,
+  X,
+  Sparkles,
+  Loader2,
+  Maximize2,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
-import { parseLrcLyrics } from '../utils/parser';
+import { parseLrcLyrics, extractSmartTrackMeta } from '../utils/parser';
+import { getLyricsForTrack } from '../utils/lyricsService';
 import { LyricLine } from '../types/music';
 
 export const NowPlayingModal: React.FC = () => {
@@ -32,6 +42,11 @@ export const NowPlayingModal: React.FC = () => {
     isShuffle,
     sleepTimerMinutes,
     isNowPlayingOpen,
+    isLoadingLyrics,
+    setSelectedArtistForDetail,
+    banArtist,
+    banTrack,
+    setCustomLyrics,
     togglePlay,
     nextTrack,
     prevTrack,
@@ -43,18 +58,33 @@ export const NowPlayingModal: React.FC = () => {
     toggleFavorite,
     playTrack,
     setIsNowPlayingOpen,
+    nowPlayingTab,
+    setNowPlayingTab,
   } = usePlayer();
 
-  const [activeTab, setActiveTab] = useState<'video' | 'lyrics' | 'art' | 'queue'>('video');
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTimerMenu, setShowTimerMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showManualLyricsModal, setShowManualLyricsModal] = useState(false);
+  const [manualLyricsInput, setManualLyricsInput] = useState('');
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [customSearchTitle, setCustomSearchTitle] = useState('');
+  const [customSearchArtist, setCustomSearchArtist] = useState('');
+  const [isReSearching, setIsReSearching] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekVal, setSeekVal] = useState(0);
   const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Reset image error state on track change
   useEffect(() => {
     setImgError(false);
   }, [currentTrack?.id]);
+
+  // Clean meta
+  const trackMeta = React.useMemo(() => {
+    if (!currentTrack) return null;
+    return extractSmartTrackMeta(currentTrack.title, currentTrack.artist);
+  }, [currentTrack]);
 
   // Parse lyrics
   const parsedLyrics: LyricLine[] = React.useMemo(() => {
@@ -73,30 +103,45 @@ export const NowPlayingModal: React.FC = () => {
     return 0;
   }, [parsedLyrics, currentTime]);
 
-  // Auto-scroll active lyric
+  // Auto-scroll active lyric smoothly to center
   useEffect(() => {
-    if (activeTab === 'lyrics' && lyricsContainerRef.current && activeLyricIndex >= 0) {
+    if (nowPlayingTab === 'lyrics' && lyricsContainerRef.current && activeLyricIndex >= 0) {
       const activeEl = lyricsContainerRef.current.children[activeLyricIndex] as HTMLElement;
       if (activeEl) {
         activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
-  }, [activeLyricIndex, activeTab]);
+  }, [activeLyricIndex, nowPlayingTab]);
 
   if (!isNowPlayingOpen || !currentTrack) return null;
 
   const formatTime = (sec: number) => {
-    if (isNaN(sec) || !isFinite(sec)) return '0:00';
+    if (isNaN(sec) || !isFinite(sec) || sec < 0) return '0:00';
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const formatRemainingTime = (currentSec: number, durSec: number) => {
+    const rem = Math.max(0, durSec - currentSec);
+    return `-${formatTime(rem)}`;
+  };
 
-  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const nextSec = (parseFloat(e.target.value) / 100) * duration;
-    seekTo(nextSec);
+  const progress = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+  const displayProgress = isSeeking ? seekVal : progress;
+  const displayTime = isSeeking ? (seekVal / 100) * duration : currentTime;
+
+  const handleSeekInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsSeeking(true);
+    setSeekVal(parseFloat(e.target.value));
+  };
+
+  const handleSeekCommit = () => {
+    if (isSeeking) {
+      const nextSec = (seekVal / 100) * duration;
+      seekTo(nextSec);
+      setIsSeeking(false);
+    }
   };
 
   const cycleRepeat = () => {
@@ -105,62 +150,130 @@ export const NowPlayingModal: React.FC = () => {
     else setRepeatMode('off');
   };
 
+  // Re-search lyrics with custom keywords
+  const handleCustomSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customSearchTitle.trim()) return;
+    setIsReSearching(true);
+    const res = await getLyricsForTrack(customSearchArtist.trim(), customSearchTitle.trim(), duration);
+    setIsReSearching(false);
+    if (res) {
+      setCustomLyrics(currentTrack.id, res);
+      setShowSearchModal(false);
+    } else {
+      alert('指定したキーワードでも同期歌詞が見つかりませんでした。「歌詞を手動入力」から貼り付けることもできます。');
+    }
+  };
+
+  const handleSaveManualLyrics = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualLyricsInput.trim()) return;
+    setCustomLyrics(currentTrack.id, manualLyricsInput.trim());
+    setShowManualLyricsModal(false);
+    setManualLyricsInput('');
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-[#07080c] flex flex-col justify-between overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-300">
-      {/* Dynamic blurred ambient glow behind album art */}
-      <div className="absolute inset-0 pointer-events-none opacity-30 overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-[#000000] flex flex-col justify-between overflow-hidden animate-in fade-in slide-in-from-bottom duration-300">
+      {/* Apple Music Fluid Live Blurred Ambient Background */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
         <div
-          className="w-full h-full scale-150 blur-3xl bg-cover bg-center"
-          style={{ backgroundImage: `url(https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg)` }}
+          className="w-full h-full scale-175 blur-[80px] opacity-45 bg-cover bg-center transition-all duration-700"
+          style={{
+            backgroundImage: `url(https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg)`,
+          }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#07080c]/60 via-[#07080c]/90 to-[#07080c]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/80 to-[#000000]" />
       </div>
 
-      {/* Top Bar */}
-      <header className="relative z-10 flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-2">
+      {/* Top Header */}
+      <header className="relative z-10 px-5 pt-[max(env(safe-area-inset-top,0px),12px)] pb-2 flex items-center justify-between">
         <button
           onClick={() => setIsNowPlayingOpen(false)}
-          className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white active:scale-90 transition-transform"
           aria-label="閉じる"
         >
-          <ChevronDown className="w-5 h-5" />
+          <ChevronDown className="w-6 h-6 stroke-[2.5]" />
         </button>
 
-        <div className="text-center">
-          <p className="text-[10px] uppercase font-bold tracking-widest text-rose-400">
-            再生プレイヤー
-          </p>
-          <h3 className="text-xs font-semibold text-slate-200 mt-0.5 truncate max-w-[200px]">
-            {currentTrack.genre || 'MeloTrace'}
-          </h3>
-        </div>
+        {/* Center Grab Handle */}
+        <div
+          onClick={() => setIsNowPlayingOpen(false)}
+          className="w-9 h-1 rounded-full bg-white/30 cursor-pointer hover:bg-white/50 transition-colors"
+        />
 
+        {/* Right contextual controls */}
         <div className="flex items-center gap-1">
           <button
             onClick={() => setShowTimerMenu(!showTimerMenu)}
-            className={`p-2.5 rounded-full transition-colors relative ${
-              sleepTimerMinutes
-                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                : 'bg-white/5 text-slate-300 hover:text-white'
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors relative ${
+              sleepTimerMinutes ? 'text-[#fa2d48] bg-[#fa2d48]/20' : 'text-[#8e8e93] hover:text-white'
             }`}
             title="スリープタイマー"
           >
-            <Timer className="w-4 h-4" />
+            <Timer className="w-5 h-5" />
             {sleepTimerMinutes && (
-              <span className="absolute -top-1 -right-1 px-1 bg-rose-500 text-[9px] font-bold text-white rounded-full">
+              <span className="absolute -top-1 -right-1 px-1 bg-[#fa2d48] text-[9px] font-bold text-white rounded-full">
                 {sleepTimerMinutes}m
               </span>
             )}
           </button>
+
+          <button
+            onClick={() => setShowMoreMenu(!showMoreMenu)}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white transition-colors"
+            title="その他のメニュー"
+          >
+            <Ban className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
-      {/* Sleep Timer Dropdown Modal */}
+      {/* More Options / Exclude Menu Popover */}
+      {showMoreMenu && (
+        <div className="absolute top-16 right-5 z-50 apple-glass rounded-2xl p-2 shadow-2xl flex flex-col gap-1 w-60 animate-in fade-in zoom-in-95 duration-150">
+          <p className="text-[11px] font-semibold text-[#8e8e93] px-2.5 py-1">曲・アーティスト操作</p>
+          <button
+            onClick={() => {
+              setSelectedArtistForDetail(currentTrack.artist);
+              setShowMoreMenu(false);
+            }}
+            className="px-3 py-2 text-xs text-left text-white hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[#fa2d48]" />
+            <span>このアーティストの他の曲</span>
+          </button>
+          <button
+            onClick={() => {
+              banTrack(currentTrack.id);
+              setShowMoreMenu(false);
+              nextTrack();
+            }}
+            className="px-3 py-2 text-xs text-left text-[#fa2d48] hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
+          >
+            <Ban className="w-3.5 h-3.5" />
+            <span>この曲を非表示 (スキップ)</span>
+          </button>
+          <button
+            onClick={() => {
+              banArtist(currentTrack.artist);
+              setShowMoreMenu(false);
+              nextTrack();
+            }}
+            className="px-3 py-2 text-xs text-left text-[#fa2d48] hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
+          >
+            <Ban className="w-3.5 h-3.5" />
+            <span>このアーティストをBan</span>
+          </button>
+        </div>
+      )}
+
+      {/* Sleep Timer Popover */}
       {showTimerMenu && (
-        <div className="absolute top-16 right-4 z-50 bg-slate-900/95 border border-white/10 rounded-2xl p-2.5 shadow-2xl backdrop-blur-xl flex flex-col gap-1 w-44">
-          <p className="text-[11px] font-semibold text-slate-400 px-2 py-1">スリープタイマー</p>
+        <div className="absolute top-16 right-5 z-50 apple-glass rounded-2xl p-2 shadow-2xl flex flex-col gap-1 w-44 animate-in fade-in zoom-in-95 duration-150">
+          <p className="text-[11px] font-semibold text-[#8e8e93] px-2.5 py-1">スリープタイマー</p>
           {[
-            { label: 'OFF', val: null },
+            { label: 'オフ', val: null },
             { label: '15分後', val: 15 },
             { label: '30分後', val: 30 },
             { label: '45分後', val: 45 },
@@ -172,10 +285,10 @@ export const NowPlayingModal: React.FC = () => {
                 setSleepTimer(item.val);
                 setShowTimerMenu(false);
               }}
-              className={`px-3 py-1.5 text-xs text-left rounded-lg transition-colors ${
+              className={`px-3 py-2 text-xs text-left rounded-xl transition-colors ${
                 sleepTimerMinutes === item.val
-                  ? 'bg-rose-500 text-white font-medium'
-                  : 'text-slate-300 hover:bg-white/10'
+                  ? 'bg-[#fa2d48] text-white font-semibold'
+                  : 'text-[#f5f5f7] hover:bg-white/10'
               }`}
             >
               {item.label}
@@ -184,76 +297,15 @@ export const NowPlayingModal: React.FC = () => {
         </div>
       )}
 
-      {/* Mode / Tabs Selector */}
-      <div className="relative z-10 flex items-center justify-center px-4 py-1">
-        <div className="inline-flex p-1 bg-white/5 border border-white/10 rounded-full backdrop-blur-md">
-          <button
-            onClick={() => setActiveTab('video')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              activeTab === 'video'
-                ? 'bg-white/15 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+      {/* CENTER STAGE */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-2 min-h-0 overflow-hidden">
+        {/* MODE: ARTWORK */}
+        {nowPlayingTab === 'art' && (
+          <div
+            className={`w-full max-w-[310px] aspect-square relative rounded-2xl overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.85)] border border-white/10 flex items-center justify-center bg-[#1c1c1e] transition-transform duration-500 ease-out ${
+              isPlaying ? 'scale-100' : 'scale-[0.88]'
             }`}
           >
-            <Tv className="w-3.5 h-3.5" />
-            <span>映像・再生</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('lyrics')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              activeTab === 'lyrics'
-                ? 'bg-white/15 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Mic2 className="w-3.5 h-3.5" />
-            <span>歌詞</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('art')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              activeTab === 'art'
-                ? 'bg-white/15 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Disc3 className="w-3.5 h-3.5" />
-            <span>アート</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('queue')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              activeTab === 'queue'
-                ? 'bg-white/15 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <ListMusic className="w-3.5 h-3.5" />
-            <span>再生列</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Center Display Area */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-2 min-h-0 overflow-hidden">
-        {/* PERSISTENT YOUTUBE PLAYER CONTAINER - Visible in Video Tab, Kept Alive in DOM */}
-        <div
-          className={`w-full max-w-sm aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black transition-all ${
-            activeTab === 'video' ? 'block relative' : 'hidden'
-          }`}
-        >
-          <iframe
-            src={`https://www.youtube-nocookie.com/embed/${currentTrack.id}?autoplay=1&enablejsapi=1&playsinline=1&rel=0`}
-            title={currentTrack.title}
-            className="w-full h-full border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
-        </div>
-
-        {/* TAB: ART */}
-        {activeTab === 'art' && (
-          <div className="w-full max-w-[280px] aspect-square relative rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/10 group flex items-center justify-center bg-slate-800">
             {!imgError ? (
               <img
                 src={`https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`}
@@ -263,204 +315,332 @@ export const NowPlayingModal: React.FC = () => {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-tr from-rose-600/40 via-violet-600/40 to-slate-900 flex flex-col items-center justify-center p-4 text-center">
-                <Disc3 className="w-16 h-16 text-rose-400 animate-spin mb-2" />
+              <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                <Disc3 className="w-16 h-16 text-[#fa2d48] animate-spin mb-2" />
                 <p className="text-sm font-bold text-white line-clamp-2">{currentTrack.title}</p>
-                <p className="text-xs text-slate-400 mt-1">{currentTrack.artist}</p>
+                <p className="text-xs text-[#8e8e93] mt-1">{currentTrack.artist}</p>
               </div>
             )}
+
+            {/* Vocaloid or Cover Tag */}
+            {trackMeta?.originalProducer && (
+              <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-[10px] font-bold text-[#af52de] border border-white/10">
+                ボカロ原曲: {trackMeta.originalProducer}
+              </div>
+            )}
+
+            {/* Apple Music Fluid Waveform Visualizer */}
             {isPlaying && (
-              <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] font-medium text-emerald-300">再生中</span>
+              <div className="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 flex items-end gap-[3px] h-6 shadow-lg">
+                <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-1" />
+                <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-2" />
+                <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-3" />
+                <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-4" />
+                <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-5" />
               </div>
             )}
           </div>
         )}
 
-        {/* TAB: LYRICS */}
-        {activeTab === 'lyrics' && (
-          <div
-            ref={lyricsContainerRef}
-            className="w-full h-full max-h-[380px] overflow-y-auto px-2 py-4 flex flex-col gap-4 text-center select-none"
-          >
-            {parsedLyrics.length > 0 ? (
-              parsedLyrics.map((line, idx) => {
-                const isActive = idx === activeLyricIndex;
-                return (
-                  <p
-                    key={idx}
-                    onClick={() => seekTo(line.time)}
-                    className={`cursor-pointer transition-all duration-300 text-sm md:text-base leading-relaxed ${
-                      isActive
-                        ? 'text-white font-bold text-lg scale-105 drop-shadow-[0_0_12px_rgba(255,45,120,0.7)]'
-                        : 'text-slate-500 hover:text-slate-300 font-medium'
-                    }`}
-                  >
-                    {line.text}
-                  </p>
-                );
-              })
-            ) : (
-              <div className="m-auto text-slate-400 text-sm flex flex-col items-center gap-2">
-                <Mic2 className="w-8 h-8 text-slate-600" />
-                <p>この曲の同期歌詞はまだ登録されていません</p>
-                <p className="text-xs text-slate-500">
-                  YouTubeの公式MVまたは音源で音楽をお楽しみください
-                </p>
+        {/* MODE: LYRICS (Real Synced Lyrics or Clean Missing State) */}
+        {nowPlayingTab === 'lyrics' && (
+          <div className="w-full h-full flex flex-col items-center justify-start max-h-[380px]">
+            {isLoadingLyrics ? (
+              <div className="m-auto flex flex-col items-center gap-3 text-white/60">
+                <Loader2 className="w-7 h-7 text-[#fa2d48] animate-spin" />
+                <p className="text-xs font-medium">歌詞データを検索中...</p>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB: QUEUE */}
-        {activeTab === 'queue' && (
-          <div className="w-full h-full max-h-[380px] overflow-y-auto px-1 py-2 flex flex-col gap-2">
-            <p className="text-xs font-semibold text-slate-400 mb-1 px-2">
-              次の再生リスト ({queue.length}曲)
-            </p>
-            {queue.map((t, idx) => (
+            ) : parsedLyrics.length > 0 ? (
               <div
-                key={`${t.id}_${idx}`}
-                onClick={() => playTrack(t)}
-                className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors ${
-                  t.id === currentTrack.id
-                    ? 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
-                    : 'bg-white/5 hover:bg-white/10 text-slate-300'
-                }`}
+                ref={lyricsContainerRef}
+                className="w-full h-full overflow-y-auto px-4 py-8 flex flex-col gap-6 text-left select-none ios-scroll-container"
               >
-                <img
-                  src={`https://img.youtube.com/vi/${t.id}/mqdefault.jpg`}
-                  alt={t.title}
-                  referrerPolicy="no-referrer"
-                  className="w-10 h-10 rounded-lg object-cover shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate">{t.title}</p>
-                  <p className="text-[11px] text-slate-400 truncate">{t.artist}</p>
-                </div>
-                {t.id === currentTrack.id && (
-                  <span className="text-[10px] font-bold text-rose-400 px-2 py-0.5 rounded bg-rose-500/20 shrink-0">
-                    再生中
-                  </span>
-                )}
+                {parsedLyrics.map((line, idx) => {
+                  const isActive = idx === activeLyricIndex;
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => seekTo(line.time)}
+                      className={`cursor-pointer transition-all duration-300 leading-relaxed font-bold ${
+                        isActive
+                          ? 'text-white text-2xl md:text-3xl scale-100 opacity-100 drop-shadow-[0_4px_16px_rgba(255,255,255,0.4)]'
+                          : 'text-white/40 text-lg md:text-xl hover:text-white/80 opacity-60 blur-[0.3px]'
+                      }`}
+                    >
+                      {line.text}
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            ) : (
+              /* REAL MISSING STATE (No fake lyrics! Gives user clear actions) */
+              <div className="m-auto text-center text-white/70 p-4 max-w-xs flex flex-col items-center gap-3">
+                <Quote className="w-10 h-10 text-white/20" />
+                <div>
+                  <p className="text-sm font-bold text-white">この曲の同期歌詞は見つかりませんでした</p>
+                  <p className="text-xs text-[#8e8e93] mt-1">
+                    マニアックな曲や独自アレンジ・歌ってみた等は、1タップでWeb検索や手動登録が可能です。
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2 w-full mt-2">
+                  {/* Direct 1-tap Google Lyrics Search */}
+                  <a
+                    href={`https://www.google.com/search?q=${encodeURIComponent(
+                      `${currentTrack.title} ${currentTrack.artist} 歌詞`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Search className="w-3.5 h-3.5 text-[#fa2d48]" />
+                    <span>Webで歌詞を調べる (Google)</span>
+                  </a>
+
+                  {/* Manual Paste/Edit Lyrics */}
+                  <button
+                    onClick={() => {
+                      setManualLyricsInput(currentTrack.lyrics || '');
+                      setShowManualLyricsModal(true);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-[#30d158]" />
+                    <span>歌詞を手動で貼り付け / 登録</span>
+                  </button>
+
+                  {/* Re-search by custom title */}
+                  <button
+                    onClick={() => {
+                      setCustomSearchTitle(trackMeta?.cleanTitle || currentTrack.title);
+                      setCustomSearchArtist(trackMeta?.originalProducer || currentTrack.artist);
+                      setShowSearchModal(true);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-[#8e8e93] text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[#ffd60a]" />
+                    <span>曲名を指定して再検索</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MODE: VIDEO */}
+        {nowPlayingTab === 'video' && (
+          <div className="w-full max-w-sm aspect-video rounded-2xl overflow-hidden pointer-events-none" />
+        )}
+
+        {/* MODE: UP NEXT QUEUE */}
+        {nowPlayingTab === 'queue' && (
+          <div className="w-full h-full max-h-[380px] overflow-y-auto px-2 py-2 flex flex-col gap-2 ios-scroll-container">
+            <div className="flex items-center justify-between px-2 mb-1">
+              <h4 className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider">
+                次に再生 ({queue.length}曲)
+              </h4>
+              <span className="text-[11px] text-[#fa2d48] font-medium">
+                {isShuffle ? 'シャッフル中' : '通常再生'}
+              </span>
+            </div>
+
+            {queue.map((t, idx) => {
+              const isCurrent = t.id === currentTrack.id;
+              return (
+                <div
+                  key={`${t.id}_${idx}`}
+                  onClick={() => playTrack(t)}
+                  className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors ${
+                    isCurrent ? 'bg-white/15 text-white font-semibold' : 'hover:bg-white/5 text-[#d1d1d6]'
+                  }`}
+                >
+                  <img
+                    src={`https://img.youtube.com/vi/${t.id}/mqdefault.jpg`}
+                    alt={t.title}
+                    referrerPolicy="no-referrer"
+                    className="w-10 h-10 rounded-lg object-cover shrink-0 bg-[#2c2c2e]"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs truncate">{t.title}</p>
+                    <p className="text-[11px] text-[#8e8e93] truncate">{t.artist}</p>
+                  </div>
+                  {isCurrent && (
+                    <div className="flex items-end gap-[2px] h-3 shrink-0 px-2">
+                      <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-1" />
+                      <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-2" />
+                      <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-3" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Bottom Track Meta & Controls */}
-      <footer className="relative z-10 px-6 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-1 max-w-lg mx-auto w-full">
-        {/* Title and Favorite */}
-        <div className="flex items-center justify-between mb-3">
+      {/* BOTTOM CONTROL PANEL */}
+      <footer className="relative z-10 px-6 pb-[max(env(safe-area-inset-bottom,0px),16px)] pt-1 max-w-md mx-auto w-full">
+        {/* Track Title, Artist, & Favorite */}
+        <div className="flex items-center justify-between mb-4">
           <div className="min-w-0 pr-3">
-            <h2 className="text-lg md:text-xl font-bold text-white truncate tracking-tight">
+            <h2 className="text-xl md:text-2xl font-bold text-white truncate tracking-tight">
               {currentTrack.title}
             </h2>
-            <p className="text-sm font-medium text-slate-400 truncate mt-0.5">
-              {currentTrack.artist}
-            </p>
+            <button
+              onClick={() => setSelectedArtistForDetail(currentTrack.artist)}
+              className="text-base font-medium text-[#8e8e93] hover:text-[#fa2d48] truncate mt-0.5 flex items-center gap-1 group text-left transition-colors max-w-full"
+              title="このアーティストの他の曲・アルバムを開く"
+            >
+              <span className="truncate group-hover:underline">{currentTrack.artist}</span>
+              <ChevronRight className="w-4 h-4 opacity-70 group-hover:opacity-100 shrink-0 text-[#8e8e93] group-hover:text-[#fa2d48] transition-colors" />
+            </button>
           </div>
+
           <button
             onClick={() => toggleFavorite(currentTrack.id)}
-            className={`p-3 rounded-full bg-white/5 hover:bg-white/10 transition-colors shrink-0 ${
-              currentTrack.isFavorite
-                ? 'text-rose-500 fill-rose-500'
-                : 'text-slate-400 hover:text-white'
-            }`}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-[#fa2d48] active:scale-90 transition-transform shrink-0"
             aria-label="お気に入り"
           >
-            <Heart className={`w-5 h-5 ${currentTrack.isFavorite ? 'fill-current' : ''}`} />
+            <Heart
+              className={`w-6 h-6 ${
+                currentTrack.isFavorite ? 'text-[#fa2d48] fill-[#fa2d48]' : 'stroke-[1.8]'
+              }`}
+            />
           </button>
         </div>
 
-        {/* Progress Slider */}
+        {/* Scrubber Slider */}
         <div className="mb-4">
           <input
             type="range"
             min="0"
             max="100"
             step="0.1"
-            value={progress}
-            onChange={handleSeekChange}
-            className="w-full h-1.5 bg-white/15 rounded-lg appearance-none cursor-pointer accent-rose-500 hover:accent-rose-400"
+            value={displayProgress}
+            onChange={handleSeekInput}
+            onPointerUp={handleSeekCommit}
+            onTouchEnd={handleSeekCommit}
+            onMouseUp={handleSeekCommit}
+            className="apple-slider"
           />
-          <div className="flex justify-between text-[11px] font-medium text-slate-400 mt-1">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
+          <div className="flex justify-between text-[11px] font-medium text-[#8e8e93] mt-1.5 tabular-nums">
+            <span>{formatTime(displayTime)}</span>
+            <span>{formatRemainingTime(displayTime, duration)}</span>
           </div>
         </div>
 
-        {/* Main Controls (Shuffle, Prev, Play/Pause, Next, Repeat) */}
-        <div className="flex items-center justify-between px-2 mb-4">
+        {/* Main Transport Controls */}
+        <div className="flex items-center justify-between px-3 mb-6">
           <button
             onClick={() => setIsShuffle(!isShuffle)}
-            className={`p-2.5 rounded-full transition-colors ${
-              isShuffle ? 'text-rose-400 bg-rose-500/10' : 'text-slate-400 hover:text-white'
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-90 ${
+              isShuffle ? 'text-[#fa2d48]' : 'text-[#8e8e93] hover:text-white'
             }`}
             aria-label="シャッフル"
           >
-            <Shuffle className="w-5 h-5" />
+            <Shuffle className="w-5 h-5 stroke-[2]" />
           </button>
 
           <button
             onClick={prevTrack}
-            className="p-2.5 text-slate-200 hover:text-white active:scale-95 transition-all"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
             aria-label="前の曲"
           >
-            <SkipBack className="w-6 h-6 fill-current" />
+            <SkipBack className="w-8 h-8 fill-current" />
           </button>
 
           <button
             onClick={togglePlay}
-            className="w-16 h-16 rounded-full bg-white text-slate-950 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_4px_24px_rgba(255,255,255,0.25)]"
+            className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_4px_24px_rgba(255,255,255,0.25)]"
             aria-label={isPlaying ? '一時停止' : '再生'}
           >
             {isPlaying ? (
-              <Pause className="w-7 h-7 fill-current" />
+              <Pause className="w-8 h-8 fill-current" />
             ) : (
-              <Play className="w-7 h-7 fill-current ml-1" />
+              <Play className="w-8 h-8 fill-current ml-1" />
             )}
           </button>
 
           <button
             onClick={nextTrack}
-            className="p-2.5 text-slate-200 hover:text-white active:scale-95 transition-all"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
             aria-label="次の曲"
           >
-            <SkipForward className="w-6 h-6 fill-current" />
+            <SkipForward className="w-8 h-8 fill-current" />
           </button>
 
           <button
             onClick={cycleRepeat}
-            className={`p-2.5 rounded-full transition-colors ${
-              repeatMode !== 'off'
-                ? 'text-rose-400 bg-rose-500/10'
-                : 'text-slate-400 hover:text-white'
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-90 ${
+              repeatMode !== 'off' ? 'text-[#fa2d48]' : 'text-[#8e8e93] hover:text-white'
             }`}
             aria-label="リピート"
           >
             {repeatMode === 'one' ? (
-              <Repeat1 className="w-5 h-5" />
+              <Repeat1 className="w-5 h-5 stroke-[2.2]" />
             ) : (
-              <Repeat className="w-5 h-5" />
+              <Repeat className="w-5 h-5 stroke-[2]" />
             )}
           </button>
         </div>
 
-        {/* Sub Controls: Speed & YouTube Native App Link */}
-        <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-white/5">
-          {/* Speed Toggle */}
+        {/* Bottom Toolbar: Lyrics, Video, YouTube Direct Link, Queue, Speed */}
+        <div className="flex items-center justify-between text-[#8e8e93] px-2 pt-2 border-t border-white/10">
+          <button
+            onClick={() => setNowPlayingTab(nowPlayingTab === 'lyrics' ? 'art' : 'lyrics')}
+            className={`p-2.5 rounded-full transition-all active:scale-90 ${
+              nowPlayingTab === 'lyrics'
+                ? 'bg-white text-black shadow-lg scale-105'
+                : 'text-[#8e8e93] hover:text-white'
+            }`}
+            title="歌詞"
+          >
+            <Quote className="w-5 h-5" />
+          </button>
+
+          <button
+            onClick={() => setNowPlayingTab(nowPlayingTab === 'video' ? 'art' : 'video')}
+            className={`p-2.5 rounded-full transition-all active:scale-90 ${
+              nowPlayingTab === 'video'
+                ? 'bg-white text-black shadow-lg scale-105'
+                : 'text-[#8e8e93] hover:text-white'
+            }`}
+            title="MV映像"
+          >
+            <Tv className="w-5 h-5" />
+          </button>
+
+          <a
+            href={`https://www.youtube.com/watch?v=${currentTrack.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2.5 rounded-full text-[#8e8e93] hover:text-white active:scale-90 transition-transform"
+            title="YouTubeで開く"
+          >
+            <ExternalLink className="w-5 h-5" />
+          </a>
+
+          <button
+            onClick={() => setNowPlayingTab(nowPlayingTab === 'queue' ? 'art' : 'queue')}
+            className={`p-2.5 rounded-full transition-all active:scale-90 ${
+              nowPlayingTab === 'queue'
+                ? 'bg-white text-black shadow-lg scale-105'
+                : 'text-[#8e8e93] hover:text-white'
+            }`}
+            title="再生待機列"
+          >
+            <ListMusic className="w-5 h-5" />
+          </button>
+
           <div className="relative">
             <button
               onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-medium"
+              className="px-2.5 py-1 rounded-full text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
             >
-              <span>{playbackRate}x</span>
+              {playbackRate}x
             </button>
             {showSpeedMenu && (
-              <div className="absolute bottom-8 left-0 z-50 bg-slate-900 border border-white/10 rounded-xl p-1 shadow-xl flex flex-col gap-1 w-20">
+              <div className="absolute bottom-10 right-0 z-50 apple-glass rounded-xl p-1 shadow-2xl flex flex-col gap-1 w-20">
                 {[0.75, 1.0, 1.25, 1.5].map((rate) => (
                   <button
                     key={rate}
@@ -469,7 +649,9 @@ export const NowPlayingModal: React.FC = () => {
                       setShowSpeedMenu(false);
                     }}
                     className={`px-2 py-1 text-xs text-center rounded-lg ${
-                      playbackRate === rate ? 'bg-rose-500 text-white' : 'text-slate-300 hover:bg-white/10'
+                      playbackRate === rate
+                        ? 'bg-[#fa2d48] text-white font-bold'
+                        : 'text-white/80 hover:bg-white/10'
                     }`}
                   >
                     {rate}x
@@ -478,19 +660,113 @@ export const NowPlayingModal: React.FC = () => {
               </div>
             )}
           </div>
-
-          {/* YouTube Official Link with App Deep Link */}
-          <a
-            href={`https://www.youtube.com/watch?v=${currentTrack.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30 transition-all font-semibold text-[11px]"
-          >
-            <span>YouTubeアプリで聴く</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
         </div>
       </footer>
+
+      {/* Manual Lyrics Paste Modal */}
+      {showManualLyricsModal && (
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl apple-card p-5 shadow-2xl border border-white/10">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-base font-bold text-white">歌詞の手動登録・編集</h3>
+              <button onClick={() => setShowManualLyricsModal(false)} className="text-[#8e8e93]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-[#8e8e93] mb-3">
+              Webからコピーした歌詞テキストを貼り付けると、歌詞タブに反映されます。
+            </p>
+            <form onSubmit={handleSaveManualLyrics} className="flex flex-col gap-3">
+              <textarea
+                rows={8}
+                value={manualLyricsInput}
+                onChange={(e) => setManualLyricsInput(e.target.value)}
+                placeholder="歌詞テキストをここに貼り付けてください..."
+                className="w-full p-3 rounded-xl bg-[#2c2c2e] text-xs text-white placeholder-[#8e8e93] focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+                required
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowManualLyricsModal(false)}
+                  className="flex-1 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 rounded-xl bg-[#fa2d48] text-white text-xs font-bold"
+                >
+                  保存する
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Re-Search Lyrics Modal */}
+      {showSearchModal && (
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl apple-card p-5 shadow-2xl border border-white/10">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-base font-bold text-white">キーワードを指定して再検索</h3>
+              <button onClick={() => setShowSearchModal(false)} className="text-[#8e8e93]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-[#8e8e93] mb-3">
+              ボカロ原曲名や原曲P名（例: 蝶々P、バルーン）を指定してLRCLibから歌詞を再取得します。
+            </p>
+            <form onSubmit={handleCustomSearch} className="flex flex-col gap-3">
+              <div>
+                <label className="text-[11px] font-semibold text-[#8e8e93] block mb-1">
+                  曲名 (例: 雨とペトラ, About me)
+                </label>
+                <input
+                  type="text"
+                  value={customSearchTitle}
+                  onChange={(e) => setCustomSearchTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-[#8e8e93] block mb-1">
+                  原曲アーティスト / ボカロP (任意)
+                </label>
+                <input
+                  type="text"
+                  value={customSearchArtist}
+                  onChange={(e) => setCustomSearchArtist(e.target.value)}
+                  placeholder="例: バルーン, 蝶々P"
+                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+                />
+              </div>
+              <div className="flex gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowSearchModal(false)}
+                  className="flex-1 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  disabled={isReSearching}
+                  className="flex-1 py-2 rounded-xl bg-[#fa2d48] text-white text-xs font-bold flex items-center justify-center gap-1"
+                >
+                  {isReSearching ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <span>歌詞を再検索</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

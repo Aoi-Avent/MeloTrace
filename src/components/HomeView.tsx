@@ -1,21 +1,19 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Play,
   Shuffle,
-  Flame,
-  Moon,
-  Zap,
-  History,
-  Compass,
-  Sparkles,
-  Upload,
-  Music2,
   ChevronRight,
-  Disc3,
-  Heart
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  ArrowDownToLine,
+  Flame,
+  Heart,
+  Music2,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
-import { MusicTrack, ActiveTab } from '../types/music';
+import { ActiveTab, QuickMixItem } from '../types/music';
+import { QUICK_MIXES } from '../data/quickMixes';
 
 interface HomeViewProps {
   setActiveTab: (tab: ActiveTab) => void;
@@ -23,21 +21,29 @@ interface HomeViewProps {
 
 export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
   const {
-    tracks,
+    activeTracks,
+    musicTracks,
+    bgmTracks,
     currentTrack,
     isPlaying,
+    isDemoMode,
     playTrack,
+    playBgmStation,
     togglePlay,
     loadDemoData,
     toggleFavorite,
     setIsShuffle,
+    setSelectedArtistForDetail,
   } = usePlayer();
 
-  const totalPlays = React.useMemo(() => {
-    return tracks.reduce((acc, t) => acc + t.playCount, 0);
-  }, [tracks]);
+  const tracks = musicTracks.length > 0 ? musicTracks : activeTracks;
+  const [isMixesExpanded, setIsMixesExpanded] = useState(false);
 
-  // Handle giant "とりあえず再生"
+  const totalPlays = useMemo(() => {
+    return activeTracks.reduce((acc, t) => acc + t.playCount, 0);
+  }, [activeTracks]);
+
+  // Handle giant "とりあえず再生" - isolated from Free BGM / Classical!
   const handleBigPlay = () => {
     if (tracks.length === 0) {
       loadDemoData();
@@ -47,55 +53,38 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
       togglePlay();
       return;
     }
-    // Pick random or top track
     const randomIdx = Math.floor(Math.random() * tracks.length);
     setIsShuffle(true);
     playTrack(tracks[randomIdx], tracks);
   };
 
-  // Quick Mood Filter handlers
-  const handleMoodPlay = (mood: 'fav' | 'chill' | 'energy' | 'nostalgia' | 'discover') => {
+  // Play a quick mix - isolated from Free BGM / Classical
+  const handleMixPlay = (mix: QuickMixItem) => {
     if (tracks.length === 0) {
       loadDemoData();
       return;
     }
-    let filtered: MusicTrack[] = [];
-    switch (mood) {
-      case 'fav':
-        filtered = tracks.filter((t) => t.isFavorite || t.playCount >= 5);
-        break;
-      case 'chill':
-        filtered = tracks.filter((t) => t.genre === '作業用・Lo-Fi' || t.genre === 'シティポップ');
-        break;
-      case 'energy':
-        filtered = tracks.filter((t) => t.genre === 'ロック・バンド' || t.genre === 'アニメ・ボカロ');
-        break;
-      case 'nostalgia':
-        filtered = [...tracks].sort((a, b) => (a.firstPlayed || '').localeCompare(b.firstPlayed || '')).slice(0, 20);
-        break;
-      case 'discover':
-        filtered = [...tracks].filter((t) => t.playCount < 3);
-        break;
-    }
-    if (filtered.length === 0) filtered = tracks;
+    const filtered = mix.filterFn(tracks);
+    const targetTracks = filtered.length > 0 ? filtered : tracks;
     setIsShuffle(true);
-    playTrack(filtered[0], filtered);
+    const randomIdx = Math.floor(Math.random() * targetTracks.length);
+    playTrack(targetTracks[randomIdx], targetTracks);
   };
 
   // Top repeated tracks
-  const topTracks = React.useMemo(() => {
+  const topTracks = useMemo(() => {
     return [...tracks].sort((a, b) => b.playCount - a.playCount).slice(0, 5);
   }, [tracks]);
 
   // Recent tracks
-  const recentTracks = React.useMemo(() => {
+  const recentTracks = useMemo(() => {
     return [...tracks]
       .sort((a, b) => (b.lastPlayed || '').localeCompare(a.lastPlayed || ''))
-      .slice(0, 8);
+      .slice(0, 10);
   }, [tracks]);
 
   // Top artists
-  const topArtists = React.useMemo(() => {
+  const topArtists = useMemo(() => {
     const map = new Map<string, number>();
     tracks.forEach((t) => map.set(t.artist, (map.get(t.artist) || 0) + t.playCount));
     return Array.from(map.entries())
@@ -104,182 +93,187 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
       .map(([name, count]) => ({ name, count }));
   }, [tracks]);
 
+  const visibleMixes = isMixesExpanded ? QUICK_MIXES : QUICK_MIXES.slice(0, 6);
+
   return (
-    <div className="pb-36 pt-4 px-4 max-w-lg mx-auto">
-      {/* Brand Header */}
-      <header className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500 via-pink-500 to-violet-600 flex items-center justify-center shadow-[0_0_16px_rgba(255,45,120,0.4)]">
-            <Music2 className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
-              <span>MeloTrace</span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-rose-300 uppercase tracking-widest">
-                Mobile
-              </span>
-            </h1>
-            <p className="text-[11px] text-slate-400">
-              YouTube履歴が自分専用の音楽ラウンジに
-            </p>
-          </div>
+    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto">
+      {/* Apple Music Header Strip */}
+      <div className="flex items-center justify-between pt-2 pb-1 border-b border-white/5 mb-3">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-[#fa2d48]" />
+          <span className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wider">
+            {isDemoMode ? 'サンプル体験中' : 'マイライブラリ'}
+          </span>
         </div>
 
-        <button
-          onClick={() => setActiveTab('import')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full glass-panel hover:bg-white/10 text-xs font-medium text-slate-200 transition-colors"
-        >
-          <Upload className="w-3.5 h-3.5 text-rose-400" />
-          <span>データ取込</span>
-        </button>
-      </header>
+        {isDemoMode ? (
+          <button
+            onClick={() => setActiveTab('import')}
+            className="flex items-center gap-1 text-[11px] font-medium text-[#fa2d48] hover:underline"
+          >
+            <span>自分の履歴を取り込む</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <span className="text-[11px] text-[#8e8e93]">
+            {tracks.length}曲 · 累計{totalPlays}回再生
+          </span>
+        )}
+      </div>
 
-      {/* Zero State / Demo Callout if empty */}
+      {/* Apple Music Signature Big Title */}
+      <h1 className="text-3xl font-extrabold text-white tracking-tight mb-4">
+        今すぐ聴く
+      </h1>
+
+      {/* Empty / Zero-state banner */}
       {tracks.length === 0 && (
-        <div className="mb-6 p-5 rounded-3xl bg-gradient-to-br from-rose-950/40 via-purple-950/30 to-slate-900 border border-rose-500/30 shadow-2xl text-center">
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-3">
-            <Sparkles className="w-6 h-6" />
-          </div>
-          <h2 className="text-base font-bold text-white mb-1">
-            まだ音楽データがありません
-          </h2>
-          <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-            ワンタップで充実したサンプル履歴をロードして、今すぐ最高の音楽体験をお試しいただけます！
+        <div className="mb-6 p-6 rounded-2xl apple-card text-center border border-white/10">
+          <Sparkles className="w-10 h-10 text-[#fa2d48] mx-auto mb-3" />
+          <h2 className="text-base font-bold text-white mb-1">音楽データがありません</h2>
+          <p className="text-xs text-[#8e8e93] mb-4 leading-relaxed">
+            サンプルデータを読み込むか、Google Takeoutの履歴ファイルを取り込んで始めましょう。
           </p>
           <div className="flex flex-col gap-2">
             <button
               onClick={loadDemoData}
-              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-rose-500 to-violet-600 text-white font-bold text-sm shadow-[0_4px_20px_rgba(255,45,120,0.4)] hover:brightness-110 active:scale-95 transition-all"
+              className="w-full py-3 px-4 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white font-semibold text-xs active:scale-98 transition-all"
             >
-              今すぐ体験してみる（デモデータをロード）
+              体験データをロードする
             </button>
             <button
               onClick={() => setActiveTab('import')}
-              className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-medium transition-colors"
+              className="w-full py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-[#d1d1d6] text-xs font-medium"
             >
-              自分のYouTube履歴ファイルを読み込む
+              自分の履歴ファイルを読み込む
             </button>
           </div>
         </div>
       )}
 
-      {/* Main Hero Card: 「とりあえずシャッフル再生」 */}
+      {/* HERO FEATURED BANNER (Apple Music Featured Station Style) */}
       {tracks.length > 0 && (
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-rose-600/30 via-violet-600/20 to-slate-900/80 border border-white/10 p-5 mb-6 shadow-2xl backdrop-blur-xl">
-          {/* Ambient Glow */}
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-rose-500/25 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-violet-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#2c151b] via-[#1c1c1e] to-[#121214] border border-white/10 p-5 mb-7 shadow-xl">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-bold text-[#fa2d48] uppercase tracking-wider flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>パーソナルステーション</span>
+            </span>
+            <span className="text-[11px] text-[#8e8e93] tabular-nums">
+              {tracks.length}曲
+            </span>
+          </div>
 
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>ワンタップですぐ聴ける</span>
-              </span>
-              <span className="text-xs text-slate-400 font-medium">
-                {tracks.length}曲 · 累計{totalPlays}回再生
-              </span>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 pr-2">
+              <h2 className="text-xl font-bold text-white tracking-tight">
+                とりあえずシャッフル再生
+              </h2>
+              <p className="text-xs text-[#a1a1a6] mt-1 line-clamp-2 leading-relaxed">
+                あなたの全視聴履歴から、今一番聴きたい曲をランダムにミックスしてお届けします。
+              </p>
             </div>
 
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1">
-                <h2 className="text-xl font-extrabold text-white tracking-tight leading-snug">
-                  とりあえずシャッフル再生
-                </h2>
-                <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                  過去に聴いた履歴から、今聴きたい最高の一曲をランダムにお届けします。
-                </p>
-              </div>
-
-              {/* Giant Play Button */}
-              <button
-                onClick={handleBigPlay}
-                className="w-16 h-16 rounded-full bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shrink-0 shadow-[0_0_28px_rgba(255,45,120,0.55)] hover:scale-105 active:scale-95 transition-all group"
-                aria-label="シャッフル再生"
-              >
-                {isPlaying ? (
-                  <Disc3 className="w-8 h-8 animate-spin" />
-                ) : (
-                  <Play className="w-8 h-8 fill-current ml-1" />
-                )}
-              </button>
-            </div>
+            <button
+              onClick={handleBigPlay}
+              className="w-14 h-14 rounded-full bg-[#fa2d48] hover:bg-[#ff3b56] text-white flex items-center justify-center shrink-0 shadow-[0_4px_20px_rgba(250,45,72,0.45)] active:scale-95 transition-all"
+              aria-label="シャッフル再生"
+            >
+              {isPlaying ? (
+                <div className="flex items-end gap-[3px] h-4">
+                  <span className="w-1 bg-white rounded-full apple-eq-bar-1" />
+                  <span className="w-1 bg-white rounded-full apple-eq-bar-2" />
+                  <span className="w-1 bg-white rounded-full apple-eq-bar-3" />
+                </div>
+              ) : (
+                <Play className="w-6 h-6 fill-current ml-0.5" />
+              )}
+            </button>
           </div>
         </div>
       )}
 
-      {/* Mood Mixes (気分別クイックミックス) */}
-      <section className="mb-7">
+      {/* QUICK MIXES (Expanded to 24 with pull-down toggle) */}
+      <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
-            <span>気分で選ぶクイックミックス</span>
-          </h3>
-          <span className="text-[11px] text-slate-400">1タップで再生</span>
+          <div>
+            <h3 className="text-lg font-bold text-white tracking-tight">
+              クイックミックス
+            </h3>
+            <p className="text-xs text-[#8e8e93]">
+              気分やシチュエーションに合わせて即再生
+            </p>
+          </div>
+          <button
+            onClick={() => setIsMixesExpanded(!isMixesExpanded)}
+            className="flex items-center gap-1 text-xs text-[#fa2d48] font-semibold hover:underline"
+          >
+            <span>{isMixesExpanded ? '折りたたむ' : `全${QUICK_MIXES.length}種類`}</span>
+            {isMixesExpanded ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </button>
         </div>
 
+        {/* 2-Column Mix Grid */}
         <div className="grid grid-cols-2 gap-2.5">
-          <button
-            onClick={() => handleMoodPlay('fav')}
-            className="flex items-center gap-3 p-3 rounded-2xl glass-panel hover:bg-white/10 text-left active:scale-98 transition-all group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-rose-500/15 text-rose-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Flame className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs font-bold text-white truncate">いつもの定番</h4>
-              <p className="text-[10px] text-slate-400 truncate">ヘビロテ中の人気曲</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleMoodPlay('chill')}
-            className="flex items-center gap-3 p-3 rounded-2xl glass-panel hover:bg-white/10 text-left active:scale-98 transition-all group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Moon className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs font-bold text-white truncate">作業・深夜のチル</h4>
-              <p className="text-[10px] text-slate-400 truncate">Lo-Fi・シティポップ</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleMoodPlay('energy')}
-            className="flex items-center gap-3 p-3 rounded-2xl glass-panel hover:bg-white/10 text-left active:scale-98 transition-all group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Zap className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs font-bold text-white truncate">テンションMAX</h4>
-              <p className="text-[10px] text-slate-400 truncate">ロック・アニメ・ボカロ</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleMoodPlay('nostalgia')}
-            className="flex items-center gap-3 p-3 rounded-2xl glass-panel hover:bg-white/10 text-left active:scale-98 transition-all group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <History className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs font-bold text-white truncate">懐かしのあの曲</h4>
-              <p className="text-[10px] text-slate-400 truncate">最初期によく聴いた曲</p>
-            </div>
-          </button>
+          {visibleMixes.map((mix) => (
+            <button
+              key={mix.id}
+              onClick={() => handleMixPlay(mix)}
+              className="p-3.5 rounded-2xl apple-card hover:bg-white/[0.08] active:scale-[0.98] transition-all text-left group flex flex-col justify-between min-h-[88px]"
+            >
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#8e8e93] block mb-1">
+                  {mix.category === 'mood'
+                    ? '気分'
+                    : mix.category === 'activity'
+                    ? '行動'
+                    : mix.category === 'genre'
+                    ? 'ジャンル'
+                    : '履歴'}
+                </span>
+                <h4 className="text-xs font-bold text-white group-hover:text-[#fa2d48] transition-colors leading-snug">
+                  {mix.title}
+                </h4>
+              </div>
+              <p className="text-[10px] text-[#8e8e93] truncate mt-1">
+                {mix.subtitle}
+              </p>
+            </button>
+          ))}
         </div>
+
+        {/* Bottom disclosure button to expand/collapse if not already */}
+        <button
+          onClick={() => setIsMixesExpanded(!isMixesExpanded)}
+          className="w-full mt-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 active:scale-98 text-xs font-semibold text-[#8e8e93] hover:text-white transition-colors flex items-center justify-center gap-1.5"
+        >
+          <span>
+            {isMixesExpanded
+              ? '一部のミックスのみ表示'
+              : `残りのミックスを表示 (${QUICK_MIXES.length - 6}種類)`}
+          </span>
+          {isMixesExpanded ? (
+            <ChevronUp className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5" />
+          )}
+        </button>
       </section>
 
-      {/* Recently Played (最近聴いた曲) Horizontal Scroll */}
+      {/* RECENTLY PLAYED (最近聴いた曲) Horizontal Shelf */}
       {recentTracks.length > 0 && (
-        <section className="mb-7">
+        <section className="mb-8">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-white tracking-tight">最近聴いた曲</h3>
+            <h3 className="text-lg font-bold text-white tracking-tight">
+              最近再生した曲
+            </h3>
             <button
               onClick={() => setActiveTab('library')}
-              className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-0.5"
+              className="text-xs text-[#fa2d48] font-semibold flex items-center gap-0.5 hover:underline"
             >
               <span>すべて見る</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -290,10 +284,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
             {recentTracks.map((track) => (
               <div
                 key={track.id}
-                onClick={() => playTrack(track)}
-                className="w-32 shrink-0 cursor-pointer group active:scale-95 transition-all"
+                onClick={() => playTrack(track, recentTracks)}
+                className="w-32 shrink-0 cursor-pointer group active:scale-95 transition-transform"
               >
-                <div className="w-32 h-32 rounded-2xl overflow-hidden relative mb-2 bg-slate-800 border border-white/5 shadow-md">
+                <div className="w-32 h-32 rounded-xl overflow-hidden relative mb-2 bg-[#1c1c1e] border border-white/10 shadow-md">
                   <img
                     src={`https://img.youtube.com/vi/${track.id}/mqdefault.jpg`}
                     alt={track.title}
@@ -302,15 +296,19 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
                     loading="lazy"
                   />
                   {currentTrack?.id === track.id && isPlaying && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <div className="flex items-end gap-[3px] h-4">
+                        <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-1" />
+                        <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-2" />
+                        <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-3" />
+                      </div>
                     </div>
                   )}
                 </div>
                 <h4 className="text-xs font-semibold text-white truncate leading-tight">
                   {track.title}
                 </h4>
-                <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                <p className="text-[11px] text-[#8e8e93] truncate mt-0.5">
                   {track.artist}
                 </p>
               </div>
@@ -319,18 +317,18 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
         </section>
       )}
 
-      {/* Top 5 Most Repeated Tracks (ヘビロテランキング) */}
+      {/* TOP 5 REPEATED TRACKS (ヘビロテ) */}
       {topTracks.length > 0 && (
-        <section className="mb-6">
+        <section className="mb-8">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-white tracking-tight">
-              あなたの最多リピート TOP 5
+            <h3 className="text-lg font-bold text-white tracking-tight">
+              最多リピート TOP 5
             </h3>
             <button
               onClick={() => setActiveTab('analytics')}
-              className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-0.5"
+              className="text-xs text-[#fa2d48] font-semibold flex items-center gap-0.5 hover:underline"
             >
-              <span>分析カルテ</span>
+              <span>カルテ</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -339,20 +337,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
             {topTracks.map((track, idx) => (
               <div
                 key={track.id}
-                onClick={() => playTrack(track)}
-                className="flex items-center gap-3 p-2.5 rounded-2xl glass-panel hover:bg-white/10 cursor-pointer active:scale-[0.99] transition-all"
+                onClick={() => playTrack(track, topTracks)}
+                className="flex items-center gap-3 p-2.5 rounded-xl apple-card hover:bg-white/[0.08] cursor-pointer active:scale-[0.99] transition-all"
               >
-                <span
-                  className={`w-6 text-center font-black text-sm shrink-0 ${
-                    idx === 0
-                      ? 'text-amber-400'
-                      : idx === 1
-                      ? 'text-slate-300'
-                      : idx === 2
-                      ? 'text-amber-600'
-                      : 'text-slate-500'
-                  }`}
-                >
+                <span className="w-5 text-center font-bold text-xs text-[#8e8e93] tabular-nums shrink-0">
                   {idx + 1}
                 </span>
 
@@ -360,16 +348,16 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
                   src={`https://img.youtube.com/vi/${track.id}/mqdefault.jpg`}
                   alt={track.title}
                   referrerPolicy="no-referrer"
-                  className="w-11 h-11 rounded-xl object-cover shrink-0"
+                  className="w-11 h-11 rounded-lg object-cover shrink-0 bg-[#2c2c2e]"
                   loading="lazy"
                 />
 
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-xs font-bold text-white truncate leading-tight">
+                  <h4 className="text-xs font-semibold text-white truncate leading-tight">
                     {track.title}
                   </h4>
-                  <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                    {track.artist} · {track.playCount}回再生
+                  <p className="text-[11px] text-[#8e8e93] truncate mt-0.5">
+                    {track.artist} · {track.playCount}回
                   </p>
                 </div>
 
@@ -378,11 +366,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
                     e.stopPropagation();
                     toggleFavorite(track.id);
                   }}
-                  className={`p-2 rounded-full transition-colors ${
-                    track.isFavorite ? 'text-rose-400' : 'text-slate-500 hover:text-white'
-                  }`}
+                  className="p-2 text-[#8e8e93] hover:text-[#fa2d48] transition-colors"
+                  aria-label="お気に入り"
                 >
-                  <Heart className={`w-4 h-4 ${track.isFavorite ? 'fill-current' : ''}`} />
+                  <Heart
+                    className={`w-4 h-4 ${
+                      track.isFavorite ? 'text-[#fa2d48] fill-[#fa2d48]' : ''
+                    }`}
+                  />
                 </button>
               </div>
             ))}
@@ -390,26 +381,22 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
         </section>
       )}
 
-      {/* Top Artists quick tags */}
+      {/* TOP ARTISTS */}
       {topArtists.length > 0 && (
-        <section>
-          <h3 className="text-sm font-bold text-white tracking-tight mb-3">
+        <section className="mb-4">
+          <h3 className="text-lg font-bold text-white tracking-tight mb-3">
             よく聴くアーティスト
           </h3>
           <div className="flex flex-wrap gap-2">
             {topArtists.map((artist) => (
               <button
                 key={artist.name}
-                onClick={() => {
-                  const artistTracks = tracks.filter((t) => t.artist === artist.name);
-                  if (artistTracks.length > 0) {
-                    playTrack(artistTracks[0], artistTracks);
-                  }
-                }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-panel hover:bg-white/10 active:scale-95 transition-all text-xs text-slate-200"
+                onClick={() => setSelectedArtistForDetail(artist.name)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full apple-card hover:bg-white/[0.12] active:scale-95 transition-all text-xs text-white"
+                title="このアーティストの曲一覧を開く"
               >
                 <span className="font-medium">{artist.name}</span>
-                <span className="text-[10px] text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded-full">
+                <span className="text-[10px] text-[#fa2d48] font-bold">
                   {artist.count}回
                 </span>
               </button>
