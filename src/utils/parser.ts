@@ -268,7 +268,12 @@ export function parseTakeoutJson(
       const channel = sub.name || '';
       const channelId = (sub.url || '').split('/').pop();
       const product = item.header || (item.products && item.products[0]) || 'YouTube';
-      const timeStr = item.time ? new Date(item.time).toISOString().replace('T', ' ').slice(0, 16) : '';
+      const timeStr =
+        typeof item.time === 'string'
+          ? item.time.slice(0, 16).replace('T', ' ')
+          : item.time
+          ? new Date(item.time).toISOString().replace('T', ' ').slice(0, 16)
+          : '';
 
       if (!isLikelyMusic(rawTitle, channel, product, strictness)) {
         continue;

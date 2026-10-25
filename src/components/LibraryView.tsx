@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search,
   Heart,
@@ -42,6 +42,8 @@ export const LibraryView: React.FC = () => {
   const [inputTitle, setInputTitle] = useState('');
   const [inputArtist, setInputArtist] = useState('');
   const [addSuccess, setAddSuccess] = useState(false);
+  const [visibleCount, setVisibleCount] = useState<number>(60);
+  const observerRef = useRef<HTMLDivElement | null>(null);
 
   // Active track options modal
   const [targetTrackForMenu, setTargetTrackForMenu] = useState<MusicTrack | null>(null);
@@ -49,6 +51,11 @@ export const LibraryView: React.FC = () => {
   // New playlist modal state
   const [showNewPlModal, setShowNewPlModal] = useState(false);
   const [newPlName, setNewPlName] = useState('');
+
+  // Reset pagination when filter/search/tab changes
+  useEffect(() => {
+    setVisibleCount(60);
+  }, [searchQuery, selectedGenre, sortOrder, activeSubTab]);
 
   const genres = useMemo(() => {
     const set = new Set<string>();
@@ -58,34 +65,53 @@ export const LibraryView: React.FC = () => {
     return Array.from(set);
   }, [activeTracks]);
 
-  // Filtered & sorted tracks
+  // Filtered & sorted tracks (high-performance fast comparison)
   const filteredTracks = useMemo(() => {
     const baseList = activeSubTab === 'bgm' ? bgmTracks : activeSubTab === 'all' ? musicTracks : activeTracks;
+    const q = searchQuery.trim().toLowerCase();
 
-    return baseList
-      .filter((t) => {
-        if (activeSubTab === 'favorites') return t.isFavorite;
-        if (activeSubTab === 'vocaloid') {
-          return t.genre === 'ボカロ・VOCALOID' || t.genre === '歌ってみた・Cover';
+    const filtered = baseList.filter((t) => {
+      if (activeSubTab === 'favorites') return t.isFavorite;
+      if (activeSubTab === 'vocaloid') {
+        return t.genre === 'ボカロ・VOCALOID' || t.genre === '歌ってみた・Cover';
+      }
+      if (activeSubTab === 'bgm') return true;
+      if (selectedGenre !== 'all' && t.genre !== selectedGenre) return false;
+      if (!q) return true;
+      return (
+        t.title.toLowerCase().includes(q) ||
+        t.artist.toLowerCase().includes(q) ||
+        (t.genre && t.genre.toLowerCase().includes(q))
+      );
+    });
+
+    return filtered.sort((a, b) => {
+      if (sortOrder === 'plays') return b.playCount - a.playCount;
+      if (sortOrder === 'recent') return (b.lastPlayed || '') > (a.lastPlayed || '') ? 1 : -1;
+      if (sortOrder === 'first') return (a.firstPlayed || '') > (b.firstPlayed || '') ? 1 : -1;
+      if (sortOrder === 'title') {
+        const tA = (a.title || '').toLowerCase();
+        const tB = (b.title || '').toLowerCase();
+        return tA > tB ? 1 : tA < tB ? -1 : 0;
+      }
+      return 0;
+    });
+  }, [activeTracks, musicTracks, bgmTracks, searchQuery, selectedGenre, sortOrder, activeSubTab]);
+
+  // Infinite scroll observer to smoothly load more items without freezing DOM
+  useEffect(() => {
+    if (!observerRef.current || visibleCount >= filteredTracks.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) => Math.min(prev + 60, filteredTracks.length));
         }
-        if (activeSubTab === 'bgm') return true;
-        if (selectedGenre !== 'all' && t.genre !== selectedGenre) return false;
-        if (!searchQuery.trim()) return true;
-        const q = searchQuery.toLowerCase();
-        return (
-          t.title.toLowerCase().includes(q) ||
-          t.artist.toLowerCase().includes(q) ||
-          (t.genre && t.genre.toLowerCase().includes(q))
-        );
-      })
-      .sort((a, b) => {
-        if (sortOrder === 'plays') return b.playCount - a.playCount;
-        if (sortOrder === 'recent') return (b.lastPlayed || '').localeCompare(a.lastPlayed || '');
-        if (sortOrder === 'first') return (a.firstPlayed || '').localeCompare(b.firstPlayed || '');
-        if (sortOrder === 'title') return a.title.localeCompare(b.title, 'ja');
-        return 0;
-      });
-  }, [activeTracks, searchQuery, selectedGenre, sortOrder, activeSubTab]);
+      },
+      { rootMargin: '400px' }
+    );
+    observer.observe(observerRef.current);
+    return () => observer.disconnect();
+  }, [visibleCount, filteredTracks.length]);
 
   const handleAddTrack = (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,9 +291,9 @@ export const LibraryView: React.FC = () => {
             </div>
           </div>
 
-          {/* iOS Track Rows */}
+          {/* iOS Track Rows (Windowed / Infinite Scroll) */}
           <div className="flex flex-col gap-1.5">
-            {filteredTracks.map((track) => {
+            {filteredTracks.slice(0, visibleCount).map((track) => {
               const isCurrent = currentTrack?.id === track.id;
               return (
                 <div
@@ -348,6 +374,19 @@ export const LibraryView: React.FC = () => {
                 </div>
               );
             })}
+
+            {/* Infinite Scroll Trigger Sentinel */}
+            {visibleCount < filteredTracks.length && (
+              <div ref={observerRef} className="py-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => Math.min(prev + 60, filteredTracks.length))}
+                  className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white text-xs font-semibold transition-all inline-flex items-center gap-2 shadow-lg"
+                >
+                  <span>さらに表示（残り {filteredTracks.length - visibleCount} 曲）</span>
+                </button>
+              </div>
+            )}
 
             {filteredTracks.length === 0 && (
               <div className="text-center py-12 text-[#8e8e93] text-xs">

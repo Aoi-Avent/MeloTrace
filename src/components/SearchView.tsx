@@ -22,6 +22,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
   const { activeTracks, currentTrack, isPlaying, playTrack, toggleFavorite } = usePlayer();
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [visibleSearchCount, setVisibleSearchCount] = useState(50);
 
   const categories = [
     { label: 'ボカロ・VOCALOID', filter: 'ボカロ' },
@@ -218,7 +219,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
               </div>
             ) : (
               <div className="divide-y divide-white/5">
-                {searchResults.map((track) => {
+                {searchResults.slice(0, visibleSearchCount).map((track) => {
                   const isCurrent = currentTrack?.id === track.id;
                   return (
                     <div
@@ -283,6 +284,18 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
                     </div>
                   );
                 })}
+
+                {visibleSearchCount < searchResults.length && (
+                  <div className="py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleSearchCount((prev) => prev + 50)}
+                      className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/15 text-white text-xs font-semibold"
+                    >
+                      さらに曲を表示（残り {searchResults.length - visibleSearchCount} 件）
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -4,6 +4,7 @@ import { DEMO_TRACKS, DEMO_PLAYLISTS } from '../data/demoData';
 import { extractYouTubeId, extractSmartTrackMeta, isLikelyMusic, isBgmOrClassicalTrack } from '../utils/parser';
 import { getLyricsForTrack } from '../utils/lyricsService';
 import { audioKeepAlive } from '../utils/audioKeepAlive';
+import { saveTracksToDB, loadTracksFromDB, savePlaylistsToDB, loadPlaylistsFromDB, clearDB } from '../utils/db';
 
 declare global {
   interface Window {
@@ -223,6 +224,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const handleTrackEndedRef = useRef<() => void>(() => {});
   const currentTrackRef = useRef<MusicTrack | null>(currentTrack);
   const playbackRateRef = useRef<number>(playbackRate);
+  const isAdPlayingRef = useRef<boolean>(false);
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
@@ -232,20 +234,42 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     playbackRateRef.current = playbackRate;
   }, [playbackRate]);
 
-  // Sync to localStorage
+  // Restore full library from IndexedDB if available
   useEffect(() => {
+    let isMounted = true;
+    loadTracksFromDB().then((dbTracks) => {
+      if (isMounted && dbTracks && dbTracks.length > 0) {
+        setTracks(dbTracks);
+      }
+    });
+    loadPlaylistsFromDB().then((dbPls) => {
+      if (isMounted && dbPls && dbPls.length > 0) {
+        setPlaylists(dbPls);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Sync full library to IndexedDB (non-blocking) and keep lightweight fast-boot cache in localStorage
+  useEffect(() => {
+    saveTracksToDB(tracks);
     try {
-      localStorage.setItem(STORAGE_KEY_TRACKS, JSON.stringify(tracks));
+      // Cap localStorage cache to top 300 tracks so localStorage never exceeds 5MB quota
+      const cacheSubset = tracks.slice(0, 300);
+      localStorage.setItem(STORAGE_KEY_TRACKS, JSON.stringify(cacheSubset));
       localStorage.setItem(STORAGE_KEY_IS_DEMO, isDemoMode.toString());
       localStorage.setItem(STORAGE_KEY_BANNED_ARTISTS, JSON.stringify(bannedArtists));
       localStorage.setItem(STORAGE_KEY_BANNED_TRACKS, JSON.stringify(bannedTracks));
       localStorage.setItem(STORAGE_KEY_STRICTNESS, strictnessMode);
     } catch (e) {
-      console.warn('Failed to save to localStorage', e);
+      console.warn('LocalStorage quota guarded:', e);
     }
   }, [tracks, isDemoMode, bannedArtists, bannedTracks, strictnessMode]);
 
   useEffect(() => {
+    savePlaylistsToDB(playlists);
     try {
       localStorage.setItem(STORAGE_KEY_PLAYLISTS, JSON.stringify(playlists));
     } catch (e) {
@@ -253,7 +277,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [playlists]);
 
-  // Persist current track & queue
+  // Persist current track & queue (capped)
   useEffect(() => {
     if (currentTrack) {
       try {
@@ -265,7 +289,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (queue.length > 0) {
       try {
-        localStorage.setItem(STORAGE_KEY_LAST_QUEUE_IDS, JSON.stringify(queue.map((t) => t.id)));
+        localStorage.setItem(STORAGE_KEY_LAST_QUEUE_IDS, JSON.stringify(queue.slice(0, 100).map((t) => t.id)));
       } catch (e) {}
     }
   }, [queue]);
@@ -395,7 +419,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               // 1: PLAYING, 2: PAUSED, 0: ENDED, 3: BUFFERING, -1: UNSTARTED, 5: CUED
               if (event.data === 1) {
                 setIsPlaying(true);
-                setIsBuffering(false);
                 consecutiveErrorsRef.current = 0;
 
                 // Inspect current video data to distinguish ad vs actual track
@@ -406,17 +429,23 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                   vData.video_id !== currentTrackRef.current.id
                 );
                 setIsAdPlaying(isAd);
+                isAdPlayingRef.current = isAd;
 
                 if (isAd) {
-                  // Attempt 2x speed for faster ad completion
+                  // Mute the ad and 2x fast-forward through it!
                   try {
+                    ytPlayerRef.current?.mute?.();
                     ytPlayerRef.current?.setPlaybackRate?.(2);
                   } catch (e) {}
+                  setCurrentTime(0);
+                  setIsBuffering(true); // Treat ad as loading/buffering state
                 } else {
-                  // Restore user-chosen playback rate
+                  // Unmute and restore user-chosen playback rate
                   try {
+                    ytPlayerRef.current?.unMute?.();
                     ytPlayerRef.current?.setPlaybackRate?.(playbackRateRef.current);
                   } catch (e) {}
+                  setIsBuffering(false);
                   const d = ytPlayerRef.current?.getDuration?.();
                   if (d && !isNaN(d) && d > 0) setDuration(d);
                 }
@@ -435,6 +464,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 ) {
                   console.log('Ad finished playing; waiting for target music track to begin.');
                   setIsAdPlaying(false);
+                  isAdPlayingRef.current = false;
+                  try {
+                    ytPlayerRef.current?.unMute?.();
+                  } catch (e) {}
                   return; // CRITICAL: Do NOT advance track when an ad ends!
                 }
 
@@ -447,6 +480,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 }
 
                 setIsAdPlaying(false);
+                isAdPlayingRef.current = false;
+                try {
+                  ytPlayerRef.current?.unMute?.();
+                } catch (e) {}
                 handleTrackEndedRef.current();
               } else if (event.data === 3) {
                 // Buffering is normal stream loading. Never skip track during buffering!
@@ -460,6 +497,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               console.warn('YouTube Player Error Code:', errCode);
               setIsBuffering(false);
               setIsAdPlaying(false);
+              isAdPlayingRef.current = false;
+              try {
+                ytPlayerRef.current?.unMute?.();
+              } catch (e) {}
               // 2: Invalid param, 5: HTML5 player error, 100: Not found/private, 101/150: Embed blocked
               if ([2, 5, 100, 101, 150].includes(errCode)) {
                 if (consecutiveErrorsRef.current < 2) {
@@ -495,6 +536,31 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       pollIntervalRef.current = setInterval(() => {
         if (ytPlayerRef.current?.getCurrentTime) {
           try {
+            // Real-time ad state check
+            const vData = ytPlayerRef.current.getVideoData?.();
+            if (vData?.video_id && currentTrackRef.current?.id) {
+              const isAd = vData.video_id !== currentTrackRef.current.id;
+              setIsAdPlaying(isAd);
+              if (isAd) {
+                isAdPlayingRef.current = true;
+                try {
+                  ytPlayerRef.current.mute?.();
+                  ytPlayerRef.current.setPlaybackRate?.(2);
+                } catch (e) {}
+                setCurrentTime(0);
+                setIsBuffering(true);
+                return; // Freeze time at 0 during ad (treated as track loading)
+              } else if (isAdPlayingRef.current) {
+                // Ad completed, unmuting for song
+                isAdPlayingRef.current = false;
+                try {
+                  ytPlayerRef.current.unMute?.();
+                  ytPlayerRef.current.setPlaybackRate?.(playbackRateRef.current);
+                } catch (e) {}
+                setIsBuffering(false);
+              }
+            }
+
             const current = ytPlayerRef.current.getCurrentTime();
             const dur = ytPlayerRef.current.getDuration();
             if (typeof current === 'number' && !isNaN(current)) {
@@ -502,18 +568,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
             if (typeof dur === 'number' && !isNaN(dur) && dur > 0) {
               setDuration(dur);
-            }
-
-            // Real-time ad state check
-            const vData = ytPlayerRef.current.getVideoData?.();
-            if (vData?.video_id && currentTrackRef.current?.id) {
-              const isAd = vData.video_id !== currentTrackRef.current.id;
-              setIsAdPlaying(isAd);
-              if (isAd) {
-                try {
-                  ytPlayerRef.current.setPlaybackRate?.(2);
-                } catch (e) {}
-              }
             }
           } catch (e) {
             // ignore
@@ -836,6 +890,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentTrack(null);
     setIsPlaying(false);
     setIsDemoMode(false);
+    clearDB();
     localStorage.removeItem(STORAGE_KEY_TRACKS);
     localStorage.removeItem(STORAGE_KEY_PLAYLISTS);
     localStorage.removeItem(STORAGE_KEY_IS_DEMO);

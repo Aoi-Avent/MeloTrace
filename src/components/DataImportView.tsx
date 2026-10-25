@@ -128,9 +128,15 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
     setImportResult(null);
     setErrorMessage(null);
 
+    // Yield to let React display spinner
+    await new Promise((r) => setTimeout(r, 100));
+
     try {
       const fileName = file.name.toLowerCase();
       const text = await file.text();
+
+      // Yield after reading 40MB text
+      await new Promise((r) => setTimeout(r, 50));
 
       let extractedTracks: MusicTrack[] = [];
 
@@ -159,10 +165,12 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         }));
       }
 
+      await new Promise((r) => setTimeout(r, 50));
+
       if (extractedTracks.length > 0) {
         importTracks(extractedTracks);
         setImportResult(
-          `インポート成功！切り抜きや非音楽動画を高精度にフィルタリングし、${extractedTracks.length}曲 の純粋な音楽・ボカロ・カバー楽曲をライブラリに反映しました。`
+          `インポート成功！${extractedTracks.length.toLocaleString()}曲の音楽・ボカロ・カバー楽曲を抽出・保存しました。高速IndexedDBに安全保管されているため、次回以降もフリーズせずスムーズに操作できます。`
         );
       } else {
         setErrorMessage(
