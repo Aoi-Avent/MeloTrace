@@ -61,6 +61,7 @@ export const NowPlayingModal: React.FC = () => {
     setIsNowPlayingOpen,
     nowPlayingTab,
     setNowPlayingTab,
+    isAdPlaying,
   } = usePlayer();
 
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
@@ -484,6 +485,17 @@ export const NowPlayingModal: React.FC = () => {
 
       {/* BOTTOM CONTROL PANEL */}
       <footer className="relative z-10 px-6 pb-[max(env(safe-area-inset-bottom,0px),16px)] pt-1 max-w-md mx-auto w-full">
+        {/* Ad Status Indicator */}
+        {isAdPlaying && (
+          <div className="mb-3 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between animate-in fade-in">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              YouTube広告を検出 (自動スキップ待機中)
+            </span>
+            <span className="text-[10px] text-amber-300/80">終了後に本編開始</span>
+          </div>
+        )}
+
         {/* Track Title, Artist, & Favorite */}
         <div className="flex items-center justify-between mb-4">
           <div className="min-w-0 pr-3">

@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { parseTakeoutJson } from '../utils/parser';
-import { convertMhtmlFiles, downloadTextFile, MergeSummary } from '../utils/mhtmlHistory';
 import { MusicTrack, ActiveTab } from '../types/music';
 
 const GITHUB_ACTIONS_WORKFLOW_YAML = `name: Deploy to GitHub Pages
@@ -110,14 +109,6 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
   const [copiedWorkflow, setCopiedWorkflow] = useState(false);
   const [showGithubGuide, setShowGithubGuide] = useState(false);
 
-  // mhtml (マイアクティビティ) → watch-history.json 変換
-  const [mhtmlBusy, setMhtmlBusy] = useState(false);
-  const [mhtmlProgress, setMhtmlProgress] = useState('');
-  const [mhtmlSummary, setMhtmlSummary] = useState<MergeSummary | null>(null);
-  const [mhtmlJson, setMhtmlJson] = useState<string | null>(null);
-  const [mhtmlMessage, setMhtmlMessage] = useState<string | null>(null);
-  const [mhtmlError, setMhtmlError] = useState<string | null>(null);
-
   // Load demo data handler
   const handleLoadDemo = () => {
     loadDemoData();
@@ -139,19 +130,15 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
 
     try {
       const fileName = file.name.toLowerCase();
+      const text = await file.text();
+
       let extractedTracks: MusicTrack[] = [];
 
-      if (fileName.endsWith('.mhtml') || fileName.endsWith('.mht')) {
-        // マイアクティビティのmhtml: 巨大になり得るので file.text() は使わず専用パーサーで読む
-        const { items } = await convertMhtmlFiles([file]);
-        extractedTracks = parseTakeoutJson(JSON.stringify(items), strictnessMode);
-      } else if (fileName.endsWith('.json')) {
-        const text = await file.text();
+      if (fileName.endsWith('.json')) {
         // Parse Google Takeout watch-history.json with current strictness
         extractedTracks = parseTakeoutJson(text, strictnessMode);
       } else {
         // Fallback: look for youtube links in text/html
-        const text = await file.text();
         const matches = text.matchAll(/watch\?v=([a-zA-Z0-9_-]{11})/g);
         const map = new Map<string, number>();
         for (const m of matches) {
@@ -189,55 +176,6 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       setIsLoadingFile(false);
     }
   };
-
-  // マイアクティビティのmhtml（複数可）→ watch-history.json
-  const handleMhtmlFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';
-    if (files.length === 0) return;
-
-    setMhtmlBusy(true);
-    setMhtmlError(null);
-    setMhtmlMessage(null);
-    setMhtmlSummary(null);
-    setMhtmlJson(null);
-
-    try {
-      const { items, summary } = await convertMhtmlFiles(files, setMhtmlProgress);
-      setMhtmlSummary(summary);
-      if (items.length === 0) {
-        setMhtmlError(
-          '視聴履歴を取り出せませんでした。myactivity.google.com のYouTube視聴履歴ページを、ブラウザの「名前を付けて保存（mhtml）」で保存したファイルを選んでください。'
-        );
-      } else {
-        setMhtmlJson(JSON.stringify(items, null, 2));
-      }
-    } catch (err: any) {
-      console.error(err);
-      setMhtmlError('変換中にエラーが発生しました: ' + (err?.message || '不明なエラー'));
-    } finally {
-      setMhtmlBusy(false);
-      setMhtmlProgress('');
-    }
-  };
-
-  const handleDownloadWatchHistory = () => {
-    if (!mhtmlJson) return;
-    downloadTextFile('watch-history.json', mhtmlJson);
-  };
-
-  const handleImportConverted = () => {
-    if (!mhtmlJson) return;
-    const converted = parseTakeoutJson(mhtmlJson, strictnessMode);
-    if (converted.length > 0) {
-      importTracks(converted);
-      setMhtmlMessage(`${converted.length}曲 の音楽・ボカロ・カバー楽曲をライブラリに反映しました。`);
-    } else {
-      setMhtmlError('音楽として判定できる動画が見つかりませんでした。');
-    }
-  };
-
-  const fmtDay = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('ja-JP') : '-');
 
   // Quick single URL add
   const handleQuickAdd = (e: React.FormEvent) => {
@@ -513,101 +451,6 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         )}
       </section>
 
-      {/* SECTION 3.5: MY ACTIVITY (MHTML) -> watch-history.json */}
-      <section className="mb-6 p-5 rounded-2xl apple-card">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-            <FileText className="w-4 h-4 text-[#fa2d48]" />
-            <span>マイアクティビティ(mhtml)から履歴JSONを作る</span>
-          </h3>
-        </div>
-
-        <p className="text-xs text-[#8e8e93] mb-3 leading-relaxed">
-          Takeoutの履歴が途中で途切れている場合の代替手段です。
-          <code className="text-[#d1d1d6]"> myactivity.google.com </code>
-          のYouTube視聴履歴ページを下までスクロールし、ブラウザの「名前を付けて保存」でmhtml形式で保存したファイルを選ぶと、
-          <code className="text-[#d1d1d6]"> watch-history.json </code>
-          を書き出せます。複数ファイルをまとめて選べて、期間が重なっていても重複は自動で除かれます。
-        </p>
-
-        <label className="block w-full">
-          <input
-            type="file"
-            accept=".mhtml,.mht"
-            multiple
-            onChange={handleMhtmlFiles}
-            className="hidden"
-            disabled={mhtmlBusy}
-          />
-          <div className="w-full py-5 px-4 rounded-xl border border-dashed border-white/20 hover:border-[#fa2d48] hover:bg-white/[0.02] active:scale-[0.99] transition-all cursor-pointer flex flex-col items-center justify-center gap-2 text-center">
-            <FileText className="w-7 h-7 text-[#8e8e93]" />
-            <span className="text-xs font-bold text-white">
-              {mhtmlBusy ? mhtmlProgress || '変換中...' : 'mhtmlファイルを選ぶ（複数可）'}
-            </span>
-            <span className="text-[10px] text-[#8e8e93]">
-              端末内だけで処理され、外部には送信されません。大きなファイルはPCでの利用がおすすめです。
-            </span>
-          </div>
-        </label>
-
-        {mhtmlSummary && mhtmlSummary.total > 0 && (
-          <div className="mt-3 p-3 rounded-xl bg-white/[0.04] border border-white/10 text-xs text-[#d1d1d6] leading-relaxed">
-            <p className="font-bold text-white">
-              {mhtmlSummary.total.toLocaleString()}件 の視聴履歴を抽出しました
-            </p>
-            <p className="text-[11px] text-[#8e8e93] mt-0.5">
-              期間: {fmtDay(mhtmlSummary.from)} 〜 {fmtDay(mhtmlSummary.to)}
-              {mhtmlSummary.duplicatesRemoved > 0 && ` ／ 重複 ${mhtmlSummary.duplicatesRemoved.toLocaleString()}件を除去`}
-              {mhtmlSummary.skipped > 0 && ` ／ 動画以外 ${mhtmlSummary.skipped.toLocaleString()}件を除外`}
-            </p>
-            {mhtmlSummary.perFile.length > 1 && (
-              <ul className="mt-2 text-[11px] text-[#8e8e93] flex flex-col gap-0.5">
-                {mhtmlSummary.perFile.map((f, i) => (
-                  <li key={i} className={f.error ? 'text-[#fa2d48]' : ''}>
-                    {f.name}: {f.error ? f.error : `${f.count.toLocaleString()}件`}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="text-[10px] text-[#8e8e93] mt-2">
-              ※ 時刻は、このブラウザのタイムゾーンで表示されていたものとして扱います。
-            </p>
-          </div>
-        )}
-
-        {mhtmlJson && (
-          <div className="mt-3 grid grid-cols-2 gap-2.5">
-            <button
-              onClick={handleDownloadWatchHistory}
-              className="py-3 px-3 rounded-xl bg-[#fa2d48] hover:bg-[#ff4560] active:scale-98 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all"
-            >
-              <Download className="w-4 h-4" />
-              <span>JSONを保存</span>
-            </button>
-            <button
-              onClick={handleImportConverted}
-              className="py-3 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-98 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all"
-            >
-              <Upload className="w-4 h-4" />
-              <span>そのまま取り込む</span>
-            </button>
-          </div>
-        )}
-
-        {mhtmlMessage && (
-          <div className="mt-3 p-3 rounded-xl bg-[#30d158]/15 border border-[#30d158]/30 text-[#30d158] text-xs flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{mhtmlMessage}</span>
-          </div>
-        )}
-        {mhtmlError && (
-          <div className="mt-3 p-3 rounded-xl bg-[#fa2d48]/15 border border-[#fa2d48]/30 text-[#fa2d48] text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{mhtmlError}</span>
-          </div>
-        )}
-      </section>
-
       {/* SECTION 4: ONE-TAP DEMO DATA */}
       <section className="mb-6 p-5 rounded-2xl apple-card">
         <div className="flex items-center justify-between mb-2">
@@ -744,6 +587,20 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
                 </li>
               </ol>
             )}
+          </div>
+
+          {/* Ad Mitigation & Best Listening Tip */}
+          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-col gap-2">
+            <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              YouTube広告の抑制対策について
+            </span>
+            <p className="text-[11px] text-amber-200/80 leading-relaxed">
+              MeloTraceでは<b>プライバシー保護モード（youtube-nocookie.com）</b>経由で再生を行い、追跡Cookieを排除して広告頻度を大幅に抑制しています。万一広告が流れた場合も自動検知して2倍速で再生し、終了時に曲の頭からスムーズに再開します。
+            </p>
+            <p className="text-[10px] text-white/50 leading-relaxed">
+              ※スマホやPCで完全な広告なし再生を行いたい場合は、<b>Braveブラウザ</b>での閲覧や、Safariで無料の広告ブロック拡張機能（AdGuard等）のご利用が最も快適です。
+            </p>
           </div>
 
           <button

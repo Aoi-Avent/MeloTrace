@@ -47,6 +47,7 @@ interface PlayerContextType {
   setCustomLyrics: (trackId: string, lyrics: string) => void;
   setNowPlayingTab: (tab: 'video' | 'lyrics' | 'art' | 'queue') => void;
   isBuffering: boolean;
+  isAdPlaying: boolean;
   playTrack: (track: MusicTrack, newQueue?: MusicTrack[], shouldOpenModal?: boolean) => void;
   playBgmStation: () => void;
   togglePlay: () => void;
@@ -211,6 +212,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [nowPlayingTab, setNowPlayingTab] = useState<'video' | 'lyrics' | 'art' | 'queue'>('art');
   const [isLoadingLyrics, setIsLoadingLyrics] = useState<boolean>(false);
   const [isBuffering, setIsBuffering] = useState<boolean>(false);
+  const [isAdPlaying, setIsAdPlaying] = useState<boolean>(false);
 
   const ytPlayerRef = useRef<any>(null);
   const pendingTrackRef = useRef<MusicTrack | null>(null);
@@ -219,6 +221,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const consecutiveErrorsRef = useRef<number>(0);
   const nextTrackRef = useRef<() => void>(() => {});
   const handleTrackEndedRef = useRef<() => void>(() => {});
+  const currentTrackRef = useRef<MusicTrack | null>(currentTrack);
+  const playbackRateRef = useRef<number>(playbackRate);
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
+
+  useEffect(() => {
+    playbackRateRef.current = playbackRate;
+  }, [playbackRate]);
 
   // Sync to localStorage
   useEffect(() => {
@@ -351,6 +363,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           height: '100%',
           width: '100%',
           videoId: currentTrack?.id || 'ZRtdQ81jPUQ',
+          host: 'https://www.youtube-nocookie.com',
           playerVars: {
             autoplay: 0,
             playsinline: 1,
@@ -360,6 +373,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             enablejsapi: 1,
             iv_load_policy: 3,
             fs: 0,
+            origin: window.location.origin,
+            widget_referrer: window.location.href,
+            hl: 'ja',
           },
           events: {
             onReady: () => {
@@ -381,13 +397,56 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 setIsPlaying(true);
                 setIsBuffering(false);
                 consecutiveErrorsRef.current = 0;
-                const d = ytPlayerRef.current?.getDuration?.();
-                if (d && !isNaN(d) && d > 0) setDuration(d);
+
+                // Inspect current video data to distinguish ad vs actual track
+                const vData = ytPlayerRef.current?.getVideoData?.();
+                const isAd = Boolean(
+                  vData?.video_id &&
+                  currentTrackRef.current?.id &&
+                  vData.video_id !== currentTrackRef.current.id
+                );
+                setIsAdPlaying(isAd);
+
+                if (isAd) {
+                  // Attempt 2x speed for faster ad completion
+                  try {
+                    ytPlayerRef.current?.setPlaybackRate?.(2);
+                  } catch (e) {}
+                } else {
+                  // Restore user-chosen playback rate
+                  try {
+                    ytPlayerRef.current?.setPlaybackRate?.(playbackRateRef.current);
+                  } catch (e) {}
+                  const d = ytPlayerRef.current?.getDuration?.();
+                  if (d && !isNaN(d) && d > 0) setDuration(d);
+                }
               } else if (event.data === 2) {
                 setIsPlaying(false);
                 setIsBuffering(false);
               } else if (event.data === 0) {
                 setIsBuffering(false);
+
+                // Check if the ended video was actually an ad
+                const vData = ytPlayerRef.current?.getVideoData?.();
+                if (
+                  vData?.video_id &&
+                  currentTrackRef.current?.id &&
+                  vData.video_id !== currentTrackRef.current.id
+                ) {
+                  console.log('Ad finished playing; waiting for target music track to begin.');
+                  setIsAdPlaying(false);
+                  return; // CRITICAL: Do NOT advance track when an ad ends!
+                }
+
+                // Check if premature end fired
+                const curTime = ytPlayerRef.current?.getCurrentTime?.() || 0;
+                const dur = ytPlayerRef.current?.getDuration?.() || 0;
+                if (dur > 30 && curTime < dur - 5) {
+                  console.log('Premature ended event ignored (probable ad-to-video transition):', curTime, dur);
+                  return; // CRITICAL: Do NOT advance track!
+                }
+
+                setIsAdPlaying(false);
                 handleTrackEndedRef.current();
               } else if (event.data === 3) {
                 // Buffering is normal stream loading. Never skip track during buffering!
@@ -400,6 +459,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               const errCode = err?.data;
               console.warn('YouTube Player Error Code:', errCode);
               setIsBuffering(false);
+              setIsAdPlaying(false);
               // 2: Invalid param, 5: HTML5 player error, 100: Not found/private, 101/150: Embed blocked
               if ([2, 5, 100, 101, 150].includes(errCode)) {
                 if (consecutiveErrorsRef.current < 2) {
@@ -429,7 +489,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  // Poll real playback time from YouTube Player
+  // Poll real playback time & monitor ad state from YouTube Player
   useEffect(() => {
     if (isPlaying) {
       pollIntervalRef.current = setInterval(() => {
@@ -442,6 +502,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
             if (typeof dur === 'number' && !isNaN(dur) && dur > 0) {
               setDuration(dur);
+            }
+
+            // Real-time ad state check
+            const vData = ytPlayerRef.current.getVideoData?.();
+            if (vData?.video_id && currentTrackRef.current?.id) {
+              const isAd = vData.video_id !== currentTrackRef.current.id;
+              setIsAdPlaying(isAd);
+              if (isAd) {
+                try {
+                  ytPlayerRef.current.setPlaybackRate?.(2);
+                } catch (e) {}
+              }
             }
           } catch (e) {
             // ignore
@@ -473,6 +545,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setDuration(track.duration || 210);
       setIsPlaying(true);
       setIsBuffering(true);
+      setIsAdPlaying(false);
 
       // Only open full modal sheet if explicitly requested
       if (shouldOpenModal) {
@@ -839,6 +912,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isDemoMode,
         isLoadingLyrics,
         isBuffering,
+        isAdPlaying,
         bannedArtists,
         bannedTracks,
         strictnessMode,

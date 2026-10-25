@@ -7,6 +7,7 @@ export const MiniPlayer: React.FC = () => {
     currentTrack,
     isPlaying,
     isBuffering,
+    isAdPlaying,
     currentTime,
     duration,
     togglePlay,
@@ -55,9 +56,16 @@ export const MiniPlayer: React.FC = () => {
 
           {/* Track metadata */}
           <div className="flex-1 min-w-0 pr-1">
-            <h4 className="text-xs font-semibold text-white truncate leading-tight tracking-tight">
-              {currentTrack.title}
-            </h4>
+            <div className="flex items-center gap-1.5 truncate">
+              <h4 className="text-xs font-semibold text-white truncate leading-tight tracking-tight">
+                {currentTrack.title}
+              </h4>
+              {isAdPlaying && (
+                <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  広告待機中
+                </span>
+              )}
+            </div>
             <p
               onClick={(e) => {
                 e.stopPropagation();
@@ -66,7 +74,7 @@ export const MiniPlayer: React.FC = () => {
               className="text-[11px] text-[#8e8e93] hover:text-[#fa2d48] hover:underline truncate mt-0.5 cursor-pointer"
               title="アーティストの曲一覧を開く"
             >
-              {currentTrack.artist}
+              {isAdPlaying ? 'YouTube広告が終了次第、曲が始まります' : currentTrack.artist}
             </p>
           </div>
 

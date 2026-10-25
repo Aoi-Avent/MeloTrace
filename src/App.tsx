@@ -122,7 +122,7 @@ const AppContent: React.FC = () => {
         className={
           isVideoVisible
             ? 'fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-sm aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-black'
-            : 'fixed -top-[9999px] -left-[9999px] w-[320px] h-[180px] pointer-events-none opacity-[0.01]'
+            : 'fixed bottom-4 right-4 z-0 w-[240px] h-[135px] pointer-events-none opacity-[0.001]'
         }
       >
         <div id="yt-player-target" className="w-full h-full" />
