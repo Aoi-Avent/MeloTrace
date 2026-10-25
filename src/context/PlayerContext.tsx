@@ -66,6 +66,9 @@ interface PlayerContextType {
   addSingleTrackByUrl: (urlOrId: string, customTitle?: string, customArtist?: string) => boolean;
   clearAllData: () => void;
   createPlaylist: (name: string, trackIds: string[]) => void;
+  resyncPlayer: () => void;
+  unmuteAudio: () => void;
+  isPlayerMuted: boolean;
 }
 
 const STORAGE_KEY_TRACKS = 'melotrace_tracks_v5';
@@ -214,6 +217,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isLoadingLyrics, setIsLoadingLyrics] = useState<boolean>(false);
   const [isBuffering, setIsBuffering] = useState<boolean>(false);
   const [isAdPlaying, setIsAdPlaying] = useState<boolean>(false);
+  const [isPlayerMuted, setIsPlayerMuted] = useState<boolean>(false);
 
   const ytPlayerRef = useRef<any>(null);
   const pendingTrackRef = useRef<MusicTrack | null>(null);
@@ -234,18 +238,23 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     playbackRateRef.current = playbackRate;
   }, [playbackRate]);
 
+  const isHydratedRef = useRef<boolean>(false);
+
   // Restore full library from IndexedDB if available
   useEffect(() => {
     let isMounted = true;
-    loadTracksFromDB().then((dbTracks) => {
-      if (isMounted && dbTracks && dbTracks.length > 0) {
+    Promise.all([loadTracksFromDB(), loadPlaylistsFromDB()]).then(([dbTracks, dbPls]) => {
+      if (!isMounted) return;
+      if (dbTracks && dbTracks.length > 0) {
         setTracks(dbTracks);
+        setIsDemoMode(false);
       }
-    });
-    loadPlaylistsFromDB().then((dbPls) => {
-      if (isMounted && dbPls && dbPls.length > 0) {
+      if (dbPls && dbPls.length > 0) {
         setPlaylists(dbPls);
       }
+      isHydratedRef.current = true;
+    }).catch(() => {
+      isHydratedRef.current = true;
     });
     return () => {
       isMounted = false;
@@ -254,6 +263,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Sync full library to IndexedDB (non-blocking) and keep lightweight fast-boot cache in localStorage
   useEffect(() => {
+    if (!isHydratedRef.current) return; // PREVENT WIPING DATABASE ON INITIAL RENDER!
     saveTracksToDB(tracks);
     try {
       // Cap localStorage cache to top 300 tracks so localStorage never exceeds 5MB quota
@@ -568,6 +578,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
             if (typeof dur === 'number' && !isNaN(dur) && dur > 0) {
               setDuration(dur);
+            }
+
+            // Sync CarPlay / Lock Screen progress scrubber
+            if (typeof current === 'number' && typeof dur === 'number' && dur > 0) {
+              audioKeepAlive.updatePositionState(current, dur);
+            }
+
+            // Sync mute status
+            if (ytPlayerRef.current.isMuted) {
+              const muted = Boolean(ytPlayerRef.current.isMuted());
+              setIsPlayerMuted(muted);
             }
           } catch (e) {
             // ignore
@@ -896,6 +917,35 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.removeItem(STORAGE_KEY_IS_DEMO);
   }, []);
 
+  const unmuteAudio = useCallback(() => {
+    try {
+      if (ytPlayerRef.current?.unMute) {
+        ytPlayerRef.current.unMute();
+      }
+      if (ytPlayerRef.current?.setVolume) {
+        ytPlayerRef.current.setVolume(100);
+      }
+      setIsPlayerMuted(false);
+    } catch (e) {}
+  }, []);
+
+  const resyncPlayer = useCallback(() => {
+    if (!currentTrack) return;
+    try {
+      unmuteAudio();
+      const pos = currentTime || 0;
+      if (ytPlayerRef.current?.loadVideoById) {
+        ytPlayerRef.current.loadVideoById(currentTrack.id, pos);
+        ytPlayerRef.current.playVideo?.();
+      }
+      setIsPlaying(true);
+      setIsBuffering(false);
+      audioKeepAlive.onPlay(currentTrack);
+    } catch (e) {
+      console.warn('resyncPlayer failed:', e);
+    }
+  }, [currentTrack, currentTime, unmuteAudio]);
+
   const createPlaylist = useCallback((name: string, trackIds: string[]) => {
     const newPl: Playlist = {
       id: 'pl_' + Date.now(),
@@ -998,6 +1048,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         addSingleTrackByUrl,
         clearAllData,
         createPlaylist,
+        resyncPlayer,
+        unmuteAudio,
+        isPlayerMuted,
       }}
     >
       {children}

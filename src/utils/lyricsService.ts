@@ -1,6 +1,6 @@
 import { extractSmartTrackMeta } from './parser';
 
-interface LrcLibTrack {
+export interface LrcLibTrack {
   id?: number;
   trackName?: string;
   artistName?: string;
@@ -434,7 +434,7 @@ function parseTimedTextXmlToLrc(xmlStr: string): string | null {
   }
 }
 
-function convertPlainToSyncedLines(plain: string, durationSec: number = 240): string {
+export function convertPlainToSyncedLines(plain: string, durationSec: number = 240): string {
   const lines = plain
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -469,4 +469,48 @@ function saveToCache(key: string, lrc: string | null) {
   } catch (e) {
     // ignore
   }
+}
+
+export async function searchLyricsCandidates(
+  query: string,
+  artistName?: string
+): Promise<LrcLibTrack[]> {
+  const candidates: LrcLibTrack[] = [];
+  const seenIds = new Set<number>();
+
+  const doFetch = async (url: string) => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          if (item && item.id && !seenIds.has(item.id)) {
+            seenIds.add(item.id);
+            candidates.push(item);
+          }
+        }
+      }
+    } catch (e) {}
+  };
+
+  const q = encodeURIComponent(query.trim());
+  await doFetch(`https://lrclib.net/api/search?q=${q}`);
+
+  if (artistName && artistName.trim()) {
+    const a = encodeURIComponent(artistName.trim());
+    await doFetch(`https://lrclib.net/api/search?track_name=${q}&artist_name=${a}`);
+  }
+
+  return candidates;
+}
+
+export function purgeLyricsCache(trackId: string) {
+  memoryCache.delete(trackId);
+  try {
+    localStorage.removeItem(LYRICS_CACHE_PREFIX + trackId);
+  } catch (e) {}
 }

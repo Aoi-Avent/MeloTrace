@@ -19,9 +19,11 @@ import {
   ShieldAlert,
   Copy,
   Code2,
+  FileCode,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { parseTakeoutJson } from '../utils/parser';
+import { parseMhtmlToWatchHistory, MhtmlExtractionResult } from '../utils/mhtmlParser';
 import { MusicTrack, ActiveTab } from '../types/music';
 
 const GITHUB_ACTIONS_WORKFLOW_YAML = `name: Deploy to GitHub Pages
@@ -103,6 +105,12 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
   const [showHelp, setShowHelp] = useState(false);
   const [showBannedModal, setShowBannedModal] = useState(false);
 
+  // MHTML Extractor state
+  const [mhtmlResult, setMhtmlResult] = useState<MhtmlExtractionResult | null>(null);
+  const [mhtmlExtractedTracks, setMhtmlExtractedTracks] = useState<MusicTrack[]>([]);
+  const [isProcessingMhtml, setIsProcessingMhtml] = useState(false);
+  const [mhtmlSuccessMsg, setMhtmlSuccessMsg] = useState<string | null>(null);
+
   // Single URL add state
   const [quickUrl, setQuickUrl] = useState('');
   const [quickAddSuccess, setQuickAddSuccess] = useState(false);
@@ -119,7 +127,60 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
     }, 1000);
   };
 
-  // Handle file upload
+  // Dedicated MHTML File Processor
+  const processMhtmlFile = async (file: File) => {
+    setIsProcessingMhtml(true);
+    setMhtmlSuccessMsg(null);
+    setErrorMessage(null);
+    await new Promise((r) => setTimeout(r, 100));
+
+    try {
+      const text = await file.text();
+      const res = parseMhtmlToWatchHistory(text);
+
+      if (!res.success || res.entries.length === 0) {
+        setErrorMessage(res.errorMessage || 'MHTML/HTMLファイルからYouTube履歴を検出できませんでした。');
+        setIsProcessingMhtml(false);
+        return;
+      }
+
+      const parsedTracks = parseTakeoutJson(res.jsonContent, strictnessMode);
+      setMhtmlResult(res);
+      setMhtmlExtractedTracks(parsedTracks);
+      setMhtmlSuccessMsg(
+        `抽出成功！全${res.totalExtracted.toLocaleString()}件の履歴から、音楽・ボカロ等${parsedTracks.length.toLocaleString()}曲を検出しました。`
+      );
+    } catch (err: any) {
+      setErrorMessage('MHTML解析エラー: ' + (err?.message || '不明なエラー'));
+    } finally {
+      setIsProcessingMhtml(false);
+    }
+  };
+
+  // Download extracted JSON file with timestamped name
+  const handleDownloadMhtmlJson = () => {
+    if (!mhtmlResult) return;
+    const blob = new Blob([mhtmlResult.jsonContent], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = mhtmlResult.filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  // Import extracted MHTML tracks to library
+  const handleImportMhtmlTracks = () => {
+    if (mhtmlExtractedTracks.length === 0) return;
+    importTracks(mhtmlExtractedTracks);
+    setImportResult(
+      `MHTMLから${mhtmlExtractedTracks.length.toLocaleString()}曲をライブラリに取り込みました！IndexedDBに永続保存されました。`
+    );
+  };
+
+  // Handle general file upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -135,7 +196,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       const fileName = file.name.toLowerCase();
       const text = await file.text();
 
-      // Yield after reading 40MB text
+      // Yield after reading text
       await new Promise((r) => setTimeout(r, 50));
 
       let extractedTracks: MusicTrack[] = [];
@@ -143,8 +204,40 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       if (fileName.endsWith('.json')) {
         // Parse Google Takeout watch-history.json with current strictness
         extractedTracks = parseTakeoutJson(text, strictnessMode);
+      } else if (
+        fileName.endsWith('.mhtml') ||
+        fileName.endsWith('.mht') ||
+        fileName.endsWith('.html') ||
+        fileName.endsWith('.htm')
+      ) {
+        // Parse MHTML / Takeout HTML
+        const res = parseMhtmlToWatchHistory(text);
+        if (res.success && res.entries.length > 0) {
+          setMhtmlResult(res);
+          extractedTracks = parseTakeoutJson(res.jsonContent, strictnessMode);
+          setMhtmlExtractedTracks(extractedTracks);
+        } else {
+          // Fallback: look for youtube links in text/html
+          const matches = text.matchAll(/watch\?v=([a-zA-Z0-9_-]{11})/g);
+          const map = new Map<string, number>();
+          for (const m of matches) {
+            const id = m[1];
+            map.set(id, (map.get(id) || 0) + 1);
+          }
+          extractedTracks = Array.from(map.entries()).map(([id, count]) => ({
+            id,
+            title: `YouTube Track (${id})`,
+            artist: '取り込み楽曲',
+            genre: 'J-POP',
+            playCount: count,
+            lastPlayed: new Date().toISOString().replace('T', ' ').slice(0, 16),
+            firstPlayed: new Date().toISOString().replace('T', ' ').slice(0, 16),
+            isFavorite: count >= 3,
+            thumbnailUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+          }));
+        }
       } else {
-        // Fallback: look for youtube links in text/html
+        // Fallback: look for youtube links in text
         const matches = text.matchAll(/watch\?v=([a-zA-Z0-9_-]{11})/g);
         const map = new Map<string, number>();
         for (const m of matches) {
@@ -174,7 +267,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         );
       } else {
         setErrorMessage(
-          '音楽データが検出されませんでした。Google Takeoutの watch-history.json ファイルをお選びください。'
+          '音楽データが検出されませんでした。Google Takeoutの watch-history.json または視聴履歴.html / mhtml ファイルをお選びください。'
         );
       }
     } catch (err: any) {
@@ -374,6 +467,88 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
             />
           </label>
         </div>
+      </section>
+
+      {/* SECTION: MHTML / HTML EXTRACTOR & JSON GENERATOR */}
+      <section className="mb-6 p-5 rounded-2xl apple-card border border-[#0a84ff]/30 bg-gradient-to-br from-[#0a84ff]/10 via-transparent to-transparent">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+            <FileCode className="w-4 h-4 text-[#0a84ff]" />
+            <span>MHTML / HTML 履歴からJSON抽出 & 変換</span>
+          </h3>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#0a84ff]/20 text-[#0a84ff] font-bold">
+            MHTML対応
+          </span>
+        </div>
+
+        <p className="text-xs text-[#8e8e93] mb-3 leading-relaxed">
+          Google TakeoutでHTML形式で保存された履歴や、ブラウザの「名前を付けて保存（単一ファイル .mhtml）」から、アプリ専用の <code className="text-[#d1d1d6]">watch-history.json</code> を日時付きファイル名で自動生成・抽出します。
+        </p>
+
+        {/* MHTML Upload Box */}
+        <label className="block w-full">
+          <input
+            type="file"
+            accept=".mhtml,.mht,.html,.htm"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) processMhtmlFile(f);
+            }}
+            className="hidden"
+            disabled={isProcessingMhtml}
+          />
+          <div className="w-full py-4 px-4 rounded-xl border border-dashed border-[#0a84ff]/30 hover:border-[#0a84ff] hover:bg-[#0a84ff]/5 active:scale-[0.99] transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 text-center">
+            <FileCode className="w-6 h-6 text-[#0a84ff]" />
+            <span className="text-xs font-bold text-white">
+              {isProcessingMhtml ? 'MHTMLファイルを解析・抽出中...' : '.mhtml または .html ファイルを選択'}
+            </span>
+            <span className="text-[10px] text-[#8e8e93]">
+              Quoted-PrintableデコードとYouTube視聴履歴ブロックを自動抽出
+            </span>
+          </div>
+        </label>
+
+        {/* Extraction Results & Actions */}
+        {mhtmlResult && (
+          <div className="mt-3 p-3.5 rounded-xl bg-white/[0.04] border border-[#0a84ff]/40 flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-[#30d158] flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" />
+                抽出完了
+              </span>
+              <span className="text-[10px] font-mono text-[#8e8e93]">
+                {mhtmlResult.filename}
+              </span>
+            </div>
+
+            <p className="text-xs text-white/90">
+              抽出履歴: <span className="font-bold text-white">{mhtmlResult.totalExtracted.toLocaleString()}件</span>
+              {mhtmlExtractedTracks.length > 0 && (
+                <span>（音楽・ボカロ等: <span className="font-bold text-[#fa2d48]">{mhtmlExtractedTracks.length.toLocaleString()}曲</span>）</span>
+              )}
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <button
+                type="button"
+                onClick={handleDownloadMhtmlJson}
+                className="py-2.5 px-3 rounded-xl bg-[#0a84ff] hover:bg-[#0071e3] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-[#0a84ff]/20 active:scale-95"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>JSONを保存 (.json)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleImportMhtmlTracks}
+                className="py-2.5 px-3 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-[#fa2d48]/20 active:scale-95"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>ライブラリに取り込む</span>
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* SECTION 3: 2-STEP GOOGLE TAKEOUT ONBOARDING */}

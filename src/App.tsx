@@ -15,6 +15,7 @@ import { AnalyticsView } from './components/AnalyticsView';
 import { DataImportView } from './components/DataImportView';
 import { SearchView } from './components/SearchView';
 import { ArtistDetailModal } from './components/ArtistDetailModal';
+import { QuickRecoveryModal } from './components/QuickRecoveryModal';
 import { ActiveTab } from './types/music';
 import { initNoBounceScroll } from './utils/useNoBounce';
 
@@ -139,6 +140,9 @@ const AppContent: React.FC = () => {
         {activeTab === 'analytics' && <AnalyticsView />}
         {activeTab === 'import' && <DataImportView setActiveTab={setActiveTab} />}
       </main>
+
+      {/* Global Quick Recovery & Audio Resync */}
+      <QuickRecoveryModal />
 
       {/* Apple Music Floating Mini Player */}
       <MiniPlayer />

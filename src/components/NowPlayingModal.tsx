@@ -24,10 +24,20 @@ import {
   Sparkles,
   Loader2,
   Maximize2,
+  RotateCcw,
+  Trash2,
+  Music,
+  Layers,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { parseLrcLyrics, extractSmartTrackMeta } from '../utils/parser';
-import { getLyricsForTrack } from '../utils/lyricsService';
+import {
+  getLyricsForTrack,
+  searchLyricsCandidates,
+  purgeLyricsCache,
+  convertPlainToSyncedLines,
+  LrcLibTrack,
+} from '../utils/lyricsService';
 import { LyricLine } from '../types/music';
 
 export const NowPlayingModal: React.FC = () => {
@@ -74,6 +84,9 @@ export const NowPlayingModal: React.FC = () => {
   const [customSearchArtist, setCustomSearchArtist] = useState('');
   const [searchErrorMsg, setSearchErrorMsg] = useState<string | null>(null);
   const [isReSearching, setIsReSearching] = useState(false);
+  const [candidatesList, setCandidatesList] = useState<LrcLibTrack[]>([]);
+  const [isSearchingCandidates, setIsSearchingCandidates] = useState(false);
+  const [hasSearchedCandidates, setHasSearchedCandidates] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekVal, setSeekVal] = useState(0);
@@ -153,20 +166,71 @@ export const NowPlayingModal: React.FC = () => {
     else setRepeatMode('off');
   };
 
-  // Re-search lyrics with custom keywords
+  // Execute candidate search from LRCLib API
+  const handleExecuteCandidateSearch = async (title?: string, artist?: string) => {
+    const qTitle = (title !== undefined ? title : customSearchTitle).trim();
+    const qArtist = (artist !== undefined ? artist : customSearchArtist).trim();
+    if (!qTitle) return;
+
+    setIsSearchingCandidates(true);
+    setSearchErrorMsg(null);
+    setHasSearchedCandidates(true);
+    try {
+      const candidates = await searchLyricsCandidates(qTitle, qArtist);
+      setCandidatesList(candidates);
+      if (candidates.length === 0) {
+        setSearchErrorMsg('指定したキーワードに一致する歌詞候補が見つかりませんでした。別の曲名表記（英字・カナ）や原曲P名での検索、または手動貼り付けをお試しください。');
+      }
+    } catch (e: any) {
+      setSearchErrorMsg('歌詞候補の検索中に通信エラーが発生しました。');
+    } finally {
+      setIsSearchingCandidates(false);
+    }
+  };
+
+  // Re-search lyrics with custom keywords form submit
   const handleCustomSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customSearchTitle.trim()) return;
+    await handleExecuteCandidateSearch();
+  };
+
+  // User selects a specific candidate from the list
+  const handleSelectCandidate = (candidate: LrcLibTrack) => {
+    if (!currentTrack) return;
+    if (candidate.syncedLyrics) {
+      setCustomLyrics(currentTrack.id, candidate.syncedLyrics);
+    } else if (candidate.plainLyrics) {
+      const synced = convertPlainToSyncedLines(candidate.plainLyrics, duration || 240);
+      setCustomLyrics(currentTrack.id, synced);
+    }
+    setShowSearchModal(false);
+    setCandidatesList([]);
+    setHasSearchedCandidates(false);
+  };
+
+  // Delete/Clear lyrics for current track
+  const handleClearLyrics = () => {
+    if (!currentTrack) return;
+    purgeLyricsCache(currentTrack.id);
+    setCustomLyrics(currentTrack.id, '');
+    setShowSearchModal(false);
+    setShowMoreMenu(false);
+  };
+
+  // Force re-fetch from cache purge
+  const handleForceReloadLyrics = async () => {
+    if (!currentTrack) return;
+    purgeLyricsCache(currentTrack.id);
+    setCustomLyrics(currentTrack.id, '');
     setIsReSearching(true);
-    setSearchErrorMsg(null);
-    const res = await getLyricsForTrack(customSearchArtist.trim(), customSearchTitle.trim(), duration);
+    const res = await getLyricsForTrack(
+      trackMeta?.originalProducer || currentTrack.artist,
+      trackMeta?.cleanTitle || currentTrack.title,
+      duration
+    );
     setIsReSearching(false);
     if (res) {
       setCustomLyrics(currentTrack.id, res);
-      setShowSearchModal(false);
-      setSearchErrorMsg(null);
-    } else {
-      setSearchErrorMsg('指定したキーワードでは該当する同期歌詞が見つかりませんでした。「歌詞を手動入力」から貼り付けることもできます。');
     }
   };
 
@@ -270,6 +334,45 @@ export const NowPlayingModal: React.FC = () => {
             <Ban className="w-3.5 h-3.5" />
             <span>このアーティストをBan</span>
           </button>
+
+          <div className="my-1 border-t border-white/10" />
+          <p className="text-[11px] font-semibold text-[#8e8e93] px-2.5 py-0.5">歌詞操作</p>
+          <button
+            onClick={() => {
+              setShowMoreMenu(false);
+              setCustomSearchTitle(trackMeta?.cleanTitle || currentTrack.title);
+              setCustomSearchArtist(trackMeta?.originalProducer || currentTrack.artist);
+              setShowSearchModal(true);
+              handleExecuteCandidateSearch(trackMeta?.cleanTitle || currentTrack.title, trackMeta?.originalProducer || currentTrack.artist);
+            }}
+            className="px-3 py-2 text-xs text-left text-white hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
+          >
+            <Search className="w-3.5 h-3.5 text-[#0a84ff]" />
+            <span>歌詞の候補を探す / 再検索</span>
+          </button>
+          <button
+            onClick={() => {
+              setShowMoreMenu(false);
+              setManualLyricsInput(currentTrack.lyrics || '');
+              setShowManualLyricsModal(true);
+            }}
+            className="px-3 py-2 text-xs text-left text-white hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-[#30d158]" />
+            <span>歌詞を手動で貼り付け・編集</span>
+          </button>
+          {currentTrack.lyrics && (
+            <button
+              onClick={() => {
+                setShowMoreMenu(false);
+                handleClearLyrics();
+              }}
+              className="px-3 py-2 text-xs text-left text-[#fa2d48] hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>現在の歌詞を消去（リセット）</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -350,6 +453,56 @@ export const NowPlayingModal: React.FC = () => {
         {/* MODE: LYRICS (Real Synced Lyrics or Clean Missing State) */}
         {nowPlayingTab === 'lyrics' && (
           <div className="w-full h-full flex flex-col items-center justify-start max-h-[380px]">
+            {/* Top Lyrics Action Ribbon */}
+            <div className="w-full max-w-sm flex items-center justify-between px-3 py-1.5 mb-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 text-xs shrink-0 z-20">
+              <div className="flex items-center gap-1.5 text-white/80 font-medium">
+                <Quote className="w-3.5 h-3.5 text-[#fa2d48]" />
+                <span className="text-[11px] font-bold">歌詞設定</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    setCustomSearchTitle(trackMeta?.cleanTitle || currentTrack.title);
+                    setCustomSearchArtist(trackMeta?.originalProducer || currentTrack.artist);
+                    setShowSearchModal(true);
+                    handleExecuteCandidateSearch(trackMeta?.cleanTitle || currentTrack.title, trackMeta?.originalProducer || currentTrack.artist);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                  title="別の歌詞候補を探す"
+                >
+                  <Search className="w-3 h-3 text-[#0a84ff]" />
+                  <span>別の候補</span>
+                </button>
+                <button
+                  onClick={handleForceReloadLyrics}
+                  disabled={isReSearching}
+                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-medium transition-colors"
+                  title="キャッシュを消去して再取得"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${isReSearching ? 'animate-spin text-[#fa2d48]' : ''}`} />
+                </button>
+                <button
+                  onClick={() => {
+                    setManualLyricsInput(currentTrack.lyrics || '');
+                    setShowManualLyricsModal(true);
+                  }}
+                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-medium transition-colors"
+                  title="手動で貼り付け・編集"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-[#30d158]" />
+                </button>
+                {currentTrack.lyrics && (
+                  <button
+                    onClick={handleClearLyrics}
+                    className="p-1.5 rounded-lg bg-white/10 hover:bg-[#fa2d48]/20 text-[#8e8e93] hover:text-[#fa2d48] text-[11px] font-medium transition-colors"
+                    title="この曲の歌詞を消去（リセット）"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {isLoadingLyrics ? (
               <div className="m-auto flex flex-col items-center gap-3 text-white/60">
                 <Loader2 className="w-7 h-7 text-[#fa2d48] animate-spin" />
@@ -358,7 +511,7 @@ export const NowPlayingModal: React.FC = () => {
             ) : parsedLyrics.length > 0 ? (
               <div
                 ref={lyricsContainerRef}
-                className="w-full h-full overflow-y-auto px-4 py-8 flex flex-col gap-6 text-left select-none ios-scroll-container"
+                className="w-full h-full overflow-y-auto px-4 py-6 flex flex-col gap-6 text-left select-none ios-scroll-container"
               >
                 {parsedLyrics.map((line, idx) => {
                   const isActive = idx === activeLyricIndex;
@@ -389,6 +542,20 @@ export const NowPlayingModal: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col gap-2 w-full mt-2">
+                  {/* Search candidate list */}
+                  <button
+                    onClick={() => {
+                      setCustomSearchTitle(trackMeta?.cleanTitle || currentTrack.title);
+                      setCustomSearchArtist(trackMeta?.originalProducer || currentTrack.artist);
+                      setShowSearchModal(true);
+                      handleExecuteCandidateSearch(trackMeta?.cleanTitle || currentTrack.title, trackMeta?.originalProducer || currentTrack.artist);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-[#fa2d48]/25"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>歌詞の候補を探す / 再検索</span>
+                  </button>
+
                   {/* Direct 1-tap Google Lyrics Search */}
                   <a
                     href={`https://www.google.com/search?q=${encodeURIComponent(
@@ -398,7 +565,7 @@ export const NowPlayingModal: React.FC = () => {
                     rel="noopener noreferrer"
                     className="w-full py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
                   >
-                    <Search className="w-3.5 h-3.5 text-[#fa2d48]" />
+                    <ExternalLink className="w-3.5 h-3.5 text-[#0a84ff]" />
                     <span>Webで歌詞を調べる (Google)</span>
                   </a>
 
@@ -412,19 +579,6 @@ export const NowPlayingModal: React.FC = () => {
                   >
                     <Edit3 className="w-3.5 h-3.5 text-[#30d158]" />
                     <span>歌詞を手動で貼り付け / 登録</span>
-                  </button>
-
-                  {/* Re-search by custom title */}
-                  <button
-                    onClick={() => {
-                      setCustomSearchTitle(trackMeta?.cleanTitle || currentTrack.title);
-                      setCustomSearchArtist(trackMeta?.originalProducer || currentTrack.artist);
-                      setShowSearchModal(true);
-                    }}
-                    className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-[#8e8e93] text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-[#ffd60a]" />
-                    <span>曲名を指定して再検索</span>
                   </button>
                 </div>
               </div>
@@ -723,28 +877,41 @@ export const NowPlayingModal: React.FC = () => {
         </div>
       )}
 
-      {/* Re-Search Lyrics Modal */}
+      {/* Re-Search / Candidate Selection Lyrics Modal */}
       {showSearchModal && (
         <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl apple-card p-5 shadow-2xl border border-white/10">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-base font-bold text-white">キーワードを指定して再検索</h3>
-              <button onClick={() => setShowSearchModal(false)} className="text-[#8e8e93]">
+          <div className="w-full max-w-md rounded-2xl apple-card p-5 shadow-2xl border border-white/10 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between mb-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <Search className="w-5 h-5 text-[#fa2d48]" />
+                <h3 className="text-base font-bold text-white">歌詞の検索・候補選択</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowSearchModal(false);
+                  setCandidatesList([]);
+                  setHasSearchedCandidates(false);
+                }}
+                className="text-[#8e8e93] hover:text-white"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-xs text-[#8e8e93] mb-3">
-              ボカロ原曲名や原曲P名（例: 蝶々P、バルーン）を指定してLRCLibから歌詞を再取得します。
+            <p className="text-xs text-[#8e8e93] mb-3 shrink-0">
+              曲名や原曲ボカロP・アーティスト名で検索し、正しい歌詞候補を選んで適用できます。
             </p>
-            <form onSubmit={handleCustomSearch} className="flex flex-col gap-3">
+
+            {/* Search Input Form */}
+            <form onSubmit={handleCustomSearch} className="flex flex-col gap-2.5 shrink-0 mb-3">
               <div>
                 <label className="text-[11px] font-semibold text-[#8e8e93] block mb-1">
-                  曲名 (例: 雨とペトラ, About me)
+                  曲名
                 </label>
                 <input
                   type="text"
                   value={customSearchTitle}
                   onChange={(e) => setCustomSearchTitle(e.target.value)}
+                  placeholder="例: 雨とペトラ, About me, 夜に駆ける"
                   className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
                   required
                 />
@@ -760,37 +927,135 @@ export const NowPlayingModal: React.FC = () => {
                     setCustomSearchArtist(e.target.value);
                     if (searchErrorMsg) setSearchErrorMsg(null);
                   }}
-                  placeholder="例: バルーン, 蝶々P"
+                  placeholder="例: バルーン, 蝶々P, YOASOBI"
                   className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
                 />
               </div>
 
-              {searchErrorMsg && (
-                <div className="p-2.5 rounded-xl bg-[#fa2d48]/15 border border-[#fa2d48]/30 text-[#ff453a] text-[11px] leading-relaxed">
-                  {searchErrorMsg}
+              <button
+                type="submit"
+                disabled={isSearchingCandidates || isReSearching}
+                className="w-full py-2.5 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-[#fa2d48]/20 disabled:opacity-50 mt-1"
+              >
+                {isSearchingCandidates || isReSearching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>歌詞候補を検索中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4" />
+                    <span>候補を検索する</span>
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Error or Info message */}
+            {searchErrorMsg && (
+              <div className="p-2.5 rounded-xl bg-[#fa2d48]/15 border border-[#fa2d48]/30 text-[#ff453a] text-[11px] leading-relaxed mb-3 shrink-0">
+                {searchErrorMsg}
+              </div>
+            )}
+
+            {/* Candidates Results List */}
+            <div className="flex-1 overflow-y-auto min-h-0 pr-1 flex flex-col gap-2 ios-scroll-container">
+              {candidatesList.length > 0 && (
+                <div className="flex items-center justify-between text-[11px] font-bold text-[#8e8e93] px-1 pb-1">
+                  <span>見つかった歌詞候補 ({candidatesList.length}件)</span>
+                  <span className="text-[10px] text-white/50">タップして適用</span>
                 </div>
               )}
-              <div className="flex gap-2 mt-1">
+
+              {candidatesList.map((cand) => {
+                const hasSynced = Boolean(cand.syncedLyrics);
+                const hasPlain = Boolean(cand.plainLyrics);
+                return (
+                  <div
+                    key={cand.id || Math.random()}
+                    className="p-3 rounded-xl bg-white/[0.04] border border-white/10 hover:border-[#fa2d48]/50 transition-colors flex items-center justify-between gap-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs font-bold text-white truncate">
+                          {cand.trackName || customSearchTitle}
+                        </span>
+                        {hasSynced ? (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#30d158]/20 text-[#30d158] shrink-0">
+                            同期歌詞
+                          </span>
+                        ) : hasPlain ? (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#af52de]/20 text-[#af52de] shrink-0">
+                            テキスト
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-[11px] text-[#8e8e93] truncate">
+                        {cand.artistName || 'アーティスト名なし'}
+                        {cand.albumName ? ` • ${cand.albumName}` : ''}
+                      </p>
+                      {cand.duration && (
+                        <p className="text-[10px] text-white/40 mt-0.5">
+                          曲長: {formatTime(cand.duration)}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectCandidate(cand)}
+                      className="px-3 py-1.5 rounded-lg bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-bold shrink-0 transition-colors active:scale-95 shadow-md shadow-[#fa2d48]/20"
+                    >
+                      適用
+                    </button>
+                  </div>
+                );
+              })}
+
+              {hasSearchedCandidates && candidatesList.length === 0 && !isSearchingCandidates && !searchErrorMsg && (
+                <div className="py-6 text-center text-xs text-[#8e8e93]">
+                  候補が見つかりませんでした。別のキーワードでお試しください。
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2 shrink-0 mt-2">
+              {currentTrack.lyrics ? (
                 <button
                   type="button"
-                  onClick={() => setShowSearchModal(false)}
-                  className="flex-1 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold"
+                  onClick={handleClearLyrics}
+                  className="px-3 py-2 rounded-xl bg-white/5 hover:bg-[#fa2d48]/20 text-[#fa2d48] text-xs font-medium flex items-center gap-1.5 transition-colors"
                 >
-                  キャンセル
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>歌詞をリセット（消去）</span>
                 </button>
+              ) : (
                 <button
-                  type="submit"
-                  disabled={isReSearching}
-                  className="flex-1 py-2 rounded-xl bg-[#fa2d48] text-white text-xs font-bold flex items-center justify-center gap-1"
+                  type="button"
+                  onClick={() => {
+                    setShowSearchModal(false);
+                    setShowManualLyricsModal(true);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-medium flex items-center gap-1.5 transition-colors"
                 >
-                  {isReSearching ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <span>歌詞を再検索</span>
-                  )}
+                  <Edit3 className="w-3.5 h-3.5 text-[#30d158]" />
+                  <span>手動で貼り付け</span>
                 </button>
-              </div>
-            </form>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSearchModal(false);
+                  setCandidatesList([]);
+                  setHasSearchedCandidates(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold"
+              >
+                閉じる
+              </button>
+            </div>
           </div>
         </div>
       )}

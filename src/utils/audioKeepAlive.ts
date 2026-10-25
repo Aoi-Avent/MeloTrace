@@ -17,34 +17,30 @@ class AudioKeepAliveService {
     if (this.isInitialized || typeof window === 'undefined') return;
 
     try {
-      // Clean, single-frame silent audio data URI that doesn't trigger decode churn
+      // Clean 1-second silent audio data URI that loops continuously on iOS to maintain the audio hardware session
       const silentWav =
-        'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+        'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAEA';
       this.silentAudio = new Audio(silentWav);
-      this.silentAudio.loop = false; // Never use tight loop on iOS WebKit to avoid buffer leaks
+      this.silentAudio.loop = true; // Keeps iOS Safari, Lock Screen, and CarPlay audio thread active
       this.silentAudio.volume = 0.0001;
       this.silentAudio.setAttribute('playsinline', 'true');
       this.silentAudio.setAttribute('webkit-playsinline', 'true');
       this.isInitialized = true;
     } catch (e) {
-      // Silently catch - prevent any crash
+      // Silently catch
     }
   }
 
   public onPlay(track: MusicTrack | null) {
     if (!this.isInitialized) this.init();
 
-    // Trigger audio session softly once per track change, never in a tight loop
     if (this.silentAudio) {
       try {
-        this.silentAudio.currentTime = 0;
         const p = this.silentAudio.play();
         if (p && typeof p.catch === 'function') {
           p.catch(() => {});
         }
-      } catch (e) {
-        // Safe catch
-      }
+      } catch (e) {}
     }
 
     if (track && 'mediaSession' in navigator) {
@@ -67,9 +63,7 @@ class AudioKeepAliveService {
           ],
         });
         navigator.mediaSession.playbackState = 'playing';
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     }
   }
 
@@ -80,10 +74,27 @@ class AudioKeepAliveService {
     if ('mediaSession' in navigator) {
       try {
         navigator.mediaSession.playbackState = 'paused';
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     }
+  }
+
+  public updatePositionState(currentSec: number, durationSec: number) {
+    if (
+      typeof window === 'undefined' ||
+      !('mediaSession' in navigator) ||
+      !navigator.mediaSession.setPositionState
+    ) {
+      return;
+    }
+    if (!durationSec || isNaN(durationSec) || durationSec <= 0) return;
+    try {
+      const pos = Math.min(Math.max(0, currentSec), durationSec);
+      navigator.mediaSession.setPositionState({
+        duration: durationSec,
+        playbackRate: 1.0,
+        position: pos,
+      });
+    } catch (e) {}
   }
 
   public setupMediaSessionHandlers(handlers: {
@@ -118,6 +129,20 @@ class AudioKeepAliveService {
         if (details.seekTime !== undefined) {
           handlers.onSeek(details.seekTime);
         }
+      });
+
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        const offset = details.seekOffset || 10;
+        handlers.onSeek(Math.max(0, (details.seekTime || 0) - offset));
+      });
+
+      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        const offset = details.seekOffset || 10;
+        handlers.onSeek((details.seekTime || 0) + offset);
+      });
+
+      navigator.mediaSession.setActionHandler('stop', () => {
+        handlers.onPause();
       });
     } catch (e) {
       console.warn('Failed to register mediaSession actions', e);

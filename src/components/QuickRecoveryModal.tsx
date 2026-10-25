@@ -1,0 +1,173 @@
+import React, { useState } from 'react';
+import {
+  RotateCcw,
+  Volume2,
+  VolumeX,
+  Sparkles,
+  Database,
+  Check,
+  X,
+  AlertTriangle,
+  Radio,
+  ExternalLink,
+} from 'lucide-react';
+import { usePlayer } from '../context/PlayerContext';
+import { loadTracksFromDB } from '../utils/db';
+
+export const QuickRecoveryModal: React.FC = () => {
+  const {
+    currentTrack,
+    isPlaying,
+    isPlayerMuted,
+    unmuteAudio,
+    resyncPlayer,
+    activeTracks,
+  } = usePlayer();
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [dbCount, setDbCount] = useState<number | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2500);
+  };
+
+  const handleResync = () => {
+    resyncPlayer();
+    showToast('プレイヤーを再同期し、音声を復旧しました');
+  };
+
+  const handleUnmute = () => {
+    unmuteAudio();
+    showToast('音声を最大音量で有効化しました');
+  };
+
+  const handleVerifyDB = async () => {
+    const dbTracks = await loadTracksFromDB();
+    const count = dbTracks ? dbTracks.length : 0;
+    setDbCount(count);
+    showToast(`IndexedDB内に ${count.toLocaleString()} 曲が正常に保管されています`);
+  };
+
+  return (
+    <>
+      {/* Discreet floating recovery trigger in top header area */}
+      <div className="fixed top-[max(env(safe-area-inset-top,0px),8px)] right-3 z-40 flex items-center gap-1.5">
+        {/* If audio is playing but muted by browser autoplay policy, show prominent 1-tap unmute button */}
+        {isPlaying && isPlayerMuted && (
+          <button
+            onClick={handleUnmute}
+            className="px-2.5 py-1 rounded-full bg-amber-500/90 text-black text-[11px] font-bold flex items-center gap-1 shadow-lg shadow-amber-500/30 animate-pulse active:scale-95 transition-all"
+            title="タップして音声を出す"
+          >
+            <VolumeX className="w-3.5 h-3.5" />
+            <span>音声を有効化</span>
+          </button>
+        )}
+
+        <button
+          onClick={() => setIsOpen(true)}
+          className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-[#8e8e93] hover:text-white backdrop-blur-md border border-white/10 active:scale-90 transition-all shadow-sm"
+          title="アプリの復旧・再読み込みメニュー"
+          aria-label="復旧メニュー"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-2xl bg-white/95 text-black text-xs font-bold shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+          <Check className="w-4 h-4 text-[#30d158] stroke-[3]" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* Recovery Modal Sheet */}
+      {isOpen && (
+        <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-3 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-3xl apple-card p-5 shadow-2xl border border-white/15 flex flex-col gap-3">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-[#fa2d48]/15 border border-[#fa2d48]/30 flex items-center justify-center text-[#fa2d48]">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">クイック診断・アプリ復旧</h3>
+                  <p className="text-[10px] text-[#8e8e93]">ページを再読込せずに不具合を解消</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white active:scale-90"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-1">
+              {/* Option 1: Resync Player & Audio */}
+              <button
+                onClick={() => {
+                  handleResync();
+                  setIsOpen(false);
+                }}
+                className="w-full p-3 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-98 text-left flex items-center gap-3 transition-all border border-white/5"
+              >
+                <div className="w-9 h-9 rounded-xl bg-[#fa2d48]/20 text-[#fa2d48] flex items-center justify-center shrink-0">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white">プレイヤーを再同期 (音が出ない時)</p>
+                  <p className="text-[10px] text-[#8e8e93] truncate">
+                    現在の秒数から動画と音声を再接続・復旧します
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 2: Force Unmute */}
+              <button
+                onClick={() => {
+                  handleUnmute();
+                  setIsOpen(false);
+                }}
+                className="w-full p-3 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-98 text-left flex items-center gap-3 transition-all border border-white/5"
+              >
+                <div className="w-9 h-9 rounded-xl bg-[#30d158]/20 text-[#30d158] flex items-center justify-center shrink-0">
+                  <Volume2 className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white">音声を強制有効化 (ミュート解除)</p>
+                  <p className="text-[10px] text-[#8e8e93] truncate">
+                    ブラウザの自動再生制限で音が消えた際に解除
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 3: Verify Storage Data */}
+              <button
+                onClick={handleVerifyDB}
+                className="w-full p-3 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-98 text-left flex items-center gap-3 transition-all border border-white/5"
+              >
+                <div className="w-9 h-9 rounded-xl bg-[#0a84ff]/20 text-[#0a84ff] flex items-center justify-center shrink-0">
+                  <Database className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white">ライブラリ保存状況を確認</p>
+                  <p className="text-[10px] text-[#8e8e93] truncate">
+                    IndexedDB保管曲数: {dbCount !== null ? `${dbCount.toLocaleString()}曲` : `${activeTracks.length.toLocaleString()}曲 (クリックで再検証)`}
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            <p className="text-[10px] text-[#8e8e93] text-center pt-1 border-t border-white/5">
+              ※車 (CarPlay) やバックグラウンド再生時も本ボタンで即座に音声復旧できます
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
