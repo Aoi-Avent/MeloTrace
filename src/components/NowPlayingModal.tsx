@@ -28,6 +28,11 @@ import {
   Trash2,
   Music,
   Layers,
+  Smartphone,
+  Minus,
+  Plus,
+  Crosshair,
+  Disc,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { parseLrcLyrics, extractSmartTrackMeta } from '../utils/parser';
@@ -72,6 +77,15 @@ export const NowPlayingModal: React.FC = () => {
     nowPlayingTab,
     setNowPlayingTab,
     isAdPlaying,
+    lyricsOffset,
+    adjustLyricsOffset,
+    resetLyricsOffset,
+    lyricsDisplayMode,
+    setLyricsDisplayMode,
+    artworkAspectRatio,
+    setArtworkAspectRatio,
+    setIsRetroPlayerOpen,
+    setIsBgGuideOpen,
   } = usePlayer();
 
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
@@ -91,10 +105,19 @@ export const NowPlayingModal: React.FC = () => {
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekVal, setSeekVal] = useState(0);
   const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
+  const [imgRatio, setImgRatio] = useState<number>(16 / 9);
+  const [alignMode, setAlignMode] = useState(false);
 
   useEffect(() => {
     setImgError(false);
+    setImgRatio(16 / 9);
+    setAlignMode(false);
   }, [currentTrack?.id]);
+
+  // 実際に取得できた画像の縦横比から、1:1 か 16:9 かを判定
+  const isSquareImage = imgRatio < 1.3;
+  const artIsWide =
+    artworkAspectRatio === '16:9' ? true : artworkAspectRatio === '1:1' ? false : !isSquareImage;
 
   // Clean meta
   const trackMeta = React.useMemo(() => {
@@ -111,23 +134,25 @@ export const NowPlayingModal: React.FC = () => {
   // Active lyric index
   const activeLyricIndex = React.useMemo(() => {
     if (!parsedLyrics.length) return -1;
+    const t = currentTime + lyricsOffset;
     for (let i = parsedLyrics.length - 1; i >= 0; i--) {
-      if (currentTime >= parsedLyrics[i].time) {
+      if (t >= parsedLyrics[i].time) {
         return i;
       }
     }
     return 0;
-  }, [parsedLyrics, currentTime]);
+  }, [parsedLyrics, currentTime, lyricsOffset]);
 
-  // Auto-scroll active lyric smoothly to center
+  // Auto-scroll active lyric to center (dynamic mode only; scrolls only the lyrics container)
   useEffect(() => {
-    if (nowPlayingTab === 'lyrics' && lyricsContainerRef.current && activeLyricIndex >= 0) {
-      const activeEl = lyricsContainerRef.current.children[activeLyricIndex] as HTMLElement;
-      if (activeEl) {
-        activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  }, [activeLyricIndex, nowPlayingTab]);
+    if (nowPlayingTab !== 'lyrics' || lyricsDisplayMode !== 'dynamic') return;
+    const container = lyricsContainerRef.current;
+    if (!container || activeLyricIndex < 0) return;
+    const activeEl = container.children[activeLyricIndex] as HTMLElement | undefined;
+    if (!activeEl) return;
+    const top = activeEl.offsetTop - container.clientHeight / 2 + activeEl.offsetHeight / 2;
+    container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }, [activeLyricIndex, nowPlayingTab, lyricsDisplayMode, parsedLyrics.length]);
 
   if (!isNowPlayingOpen || !currentTrack) return null;
 
@@ -218,6 +243,11 @@ export const NowPlayingModal: React.FC = () => {
   };
 
   // Force re-fetch from cache purge
+  const handleResyncLyrics = async () => {
+    resetLyricsOffset();
+    await handleForceReloadLyrics();
+  };
+
   const handleForceReloadLyrics = async () => {
     if (!currentTrack) return;
     purgeLyricsCache(currentTrack.id);
@@ -273,6 +303,20 @@ export const NowPlayingModal: React.FC = () => {
 
         {/* Right contextual controls */}
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsBgGuideOpen(true)}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white transition-colors"
+            title="バックグラウンド再生"
+          >
+            <Smartphone className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { setIsRetroPlayerOpen(true); setIsNowPlayingOpen(false); }}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white transition-colors"
+            title="iPod / Walkman モード"
+          >
+            <Disc className="w-4 h-4" />
+          </button>
           <button
             onClick={() => setShowTimerMenu(!showTimerMenu)}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors relative ${
@@ -409,8 +453,9 @@ export const NowPlayingModal: React.FC = () => {
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-2 min-h-0 overflow-hidden">
         {/* MODE: ARTWORK */}
         {nowPlayingTab === 'art' && (
+          <div className="w-full flex flex-col items-center gap-3">
           <div
-            className={`w-full max-w-[310px] aspect-square relative rounded-2xl overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.85)] border border-white/10 flex items-center justify-center bg-[#1c1c1e] transition-transform duration-500 ease-out ${
+            className={`w-full ${artIsWide ? 'max-w-[360px] aspect-video' : 'max-w-[310px] aspect-square'} relative rounded-2xl overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.85)] border border-white/10 flex items-center justify-center bg-[#1c1c1e] transition-all duration-500 ease-out ${
               isPlaying ? 'scale-100' : 'scale-[0.88]'
             }`}
           >
@@ -420,6 +465,10 @@ export const NowPlayingModal: React.FC = () => {
                 alt={currentTrack.title}
                 referrerPolicy="no-referrer"
                 onError={() => setImgError(true)}
+                onLoad={(e) => {
+                  const img = e.currentTarget;
+                  if (img.naturalWidth && img.naturalHeight) setImgRatio(img.naturalWidth / img.naturalHeight);
+                }}
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -448,6 +497,18 @@ export const NowPlayingModal: React.FC = () => {
               </div>
             )}
           </div>
+          <div className="flex items-center gap-1 p-0.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-semibold">
+            {([['auto','自動'],['1:1','1:1'],['16:9','16:9']] as const).map(([v,l]) => (
+              <button
+                key={v}
+                onClick={() => setArtworkAspectRatio(v)}
+                className={`px-2.5 py-1 rounded-full transition-colors ${artworkAspectRatio === v ? 'bg-white text-black' : 'text-white/70'}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+          </div>
         )}
 
         {/* MODE: LYRICS (Real Synced Lyrics or Clean Missing State) */}
@@ -474,10 +535,10 @@ export const NowPlayingModal: React.FC = () => {
                   <span>別の候補</span>
                 </button>
                 <button
-                  onClick={handleForceReloadLyrics}
+                  onClick={handleResyncLyrics}
                   disabled={isReSearching}
                   className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-medium transition-colors"
-                  title="キャッシュを消去して再取得"
+                  title="歌詞を再取得してタイミングを再同期"
                 >
                   <RotateCcw className={`w-3.5 h-3.5 ${isReSearching ? 'animate-spin text-[#fa2d48]' : ''}`} />
                 </button>
@@ -509,26 +570,73 @@ export const NowPlayingModal: React.FC = () => {
                 <p className="text-xs font-medium">歌詞データを検索中...</p>
               </div>
             ) : parsedLyrics.length > 0 ? (
-              <div
-                ref={lyricsContainerRef}
-                className="w-full h-full overflow-y-auto px-4 py-6 flex flex-col gap-6 text-left select-none ios-scroll-container"
-              >
-                {parsedLyrics.map((line, idx) => {
-                  const isActive = idx === activeLyricIndex;
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => seekTo(line.time)}
-                      className={`cursor-pointer transition-all duration-300 leading-relaxed font-bold ${
-                        isActive
-                          ? 'text-white text-2xl md:text-3xl scale-100 opacity-100 drop-shadow-[0_4px_16px_rgba(255,255,255,0.4)]'
-                          : 'text-white/40 text-lg md:text-xl hover:text-white/80 opacity-60 blur-[0.3px]'
-                      }`}
-                    >
-                      {line.text}
-                    </div>
-                  );
-                })}
+              <div className="w-full flex-1 min-h-0 flex flex-col">
+                {/* Timing / mode controls */}
+                <div className="w-full flex items-center justify-between gap-1 px-1 pb-2 shrink-0 text-[10px] font-semibold text-white/80">
+                  <div className="flex items-center gap-0.5 rounded-full bg-white/10 p-0.5">
+                    <button onClick={() => adjustLyricsOffset(-0.3)} className="px-2 py-1 rounded-full hover:bg-white/15 flex items-center gap-0.5" title="歌詞を0.3秒遅くする">
+                      <Minus className="w-3 h-3" />遅く
+                    </button>
+                    <button onClick={resetLyricsOffset} className="px-1.5 py-1 tabular-nums min-w-[44px] text-center" title="ズレをリセット">
+                      {lyricsOffset > 0 ? '+' : ''}{lyricsOffset.toFixed(1)}s
+                    </button>
+                    <button onClick={() => adjustLyricsOffset(0.3)} className="px-2 py-1 rounded-full hover:bg-white/15 flex items-center gap-0.5" title="歌詞を0.3秒早くする">
+                      早く<Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setAlignMode((v) => !v)}
+                    className={`px-2 py-1.5 rounded-full flex items-center gap-1 ${alignMode ? 'bg-[#fa2d48] text-white' : 'bg-white/10'}`}
+                    title="歌っている行をタップして、その行に合わせます"
+                  >
+                    <Crosshair className="w-3 h-3" />合わせる
+                  </button>
+                  <button
+                    onClick={() => setLyricsDisplayMode(lyricsDisplayMode === 'dynamic' ? 'static' : 'dynamic')}
+                    className="px-2 py-1.5 rounded-full bg-white/10"
+                    title="歌詞の表示方式（動的 / 静的）"
+                  >
+                    {lyricsDisplayMode === 'dynamic' ? '動的' : '静的'}
+                  </button>
+                </div>
+                {alignMode && (
+                  <p className="text-[10px] text-[#fa2d48] pb-1 px-1 shrink-0">
+                    いま歌っている行をタップすると、その行がこの瞬間に来るよう自動調整します。
+                  </p>
+                )}
+                <div
+                  ref={lyricsContainerRef}
+                  className="relative w-full flex-1 min-h-0 overflow-y-auto px-4 py-6 flex flex-col gap-5 text-left select-none ios-scroll-container"
+                >
+                  {parsedLyrics.map((line, idx) => {
+                    const isActive = idx === activeLyricIndex;
+                    const dynamic = lyricsDisplayMode === 'dynamic';
+                    // 改行位置が動かないよう、文字サイズ・幅は常に固定。強調は transform(scale)/色/不透明度のみで行う。
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          if (alignMode) {
+                            // この行が「今」に来るようオフセットを算出（0.1秒単位）
+                            const next = Math.round((line.time - currentTime) * 10) / 10;
+                            adjustLyricsOffset(next - lyricsOffset);
+                            setAlignMode(false);
+                          } else {
+                            seekTo(Math.max(0, line.time - lyricsOffset));
+                          }
+                        }}
+                        style={dynamic ? { width: '83%' } : undefined}
+                        className={`cursor-pointer font-bold leading-relaxed text-xl whitespace-pre-wrap break-words origin-left transition-[transform,opacity,color] duration-300 will-change-transform ${
+                          isActive
+                            ? `text-white opacity-100 ${dynamic ? 'scale-[1.2]' : 'underline decoration-[#fa2d48] decoration-2 underline-offset-4'}`
+                            : 'text-white/40 opacity-70 hover:text-white/80'
+                        }`}
+                      >
+                        {line.text}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               /* REAL MISSING STATE (No fake lyrics! Gives user clear actions) */

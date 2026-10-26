@@ -3,6 +3,7 @@ import { Radio, Play, Sparkles, Flame, Moon, Zap, Coffee, Car, Heart, Music2 } f
 import { usePlayer } from '../context/PlayerContext';
 import { QUICK_MIXES } from '../data/quickMixes';
 import { QuickMixItem } from '../types/music';
+import { BackgroundPlayButton } from './BackgroundGuide';
 
 export const RadioView: React.FC = () => {
   const { activeTracks: tracks, playTrack, setIsShuffle, loadDemoData } = usePlayer();
@@ -40,6 +41,7 @@ export const RadioView: React.FC = () => {
         <h1 className="text-3xl font-extrabold text-white tracking-tight">
           ラジオ & ミックス
         </h1>
+          <BackgroundPlayButton compact className="mt-1.5" />
         <p className="text-xs text-[#8e8e93] mt-1">
           全24種類のスマートステーションから今の気分を選ぶ
         </p>

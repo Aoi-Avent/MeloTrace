@@ -25,6 +25,8 @@ import { usePlayer } from '../context/PlayerContext';
 import { parseTakeoutJson } from '../utils/parser';
 import { parseMhtmlToWatchHistory, MhtmlExtractionResult } from '../utils/mhtmlParser';
 import { MusicTrack, ActiveTab } from '../types/music';
+import { BackgroundPlayButton } from './BackgroundGuide';
+import { AccountCard } from './AccountCard';
 
 const GITHUB_ACTIONS_WORKFLOW_YAML = `name: Deploy to GitHub Pages
 
@@ -323,7 +325,10 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         <p className="text-xs text-[#8e8e93] mt-0.5">
           高精度な音楽判定・除外（Ban）設定・広告抑制・データ管理
         </p>
+        <BackgroundPlayButton compact className="mt-2" />
       </header>
+
+      <AccountCard />
 
       {/* Current Data & Ban Status Bar */}
       <div className="mb-5 p-3.5 rounded-xl apple-card border border-white/10 flex items-center justify-between">

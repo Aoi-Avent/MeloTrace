@@ -46,6 +46,8 @@ jobs:
 
       - name: Build project
         run: npm run build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v4

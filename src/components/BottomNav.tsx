@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlayCircle, Radio, Library, Search, ArrowDownToLine } from 'lucide-react';
+import { PlayCircle, Radio, Library, Search, ArrowDownToLine, Mic2 } from 'lucide-react';
 import { ActiveTab } from '../types/music';
 
 interface BottomNavProps {
@@ -12,6 +12,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
     { id: 'home' as ActiveTab, label: '今すぐ聴く', icon: PlayCircle },
     { id: 'radio' as ActiveTab, label: 'ラジオ', icon: Radio },
     { id: 'library' as ActiveTab, label: 'ライブラリ', icon: Library },
+    { id: 'artists' as ActiveTab, label: 'アーティスト', icon: Mic2 },
     { id: 'search' as ActiveTab, label: '検索', icon: Search },
     { id: 'import' as ActiveTab, label: '取込・設定', icon: ArrowDownToLine },
   ];

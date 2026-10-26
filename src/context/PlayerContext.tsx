@@ -1,9 +1,25 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { MusicTrack, Playlist, RepeatMode } from '../types/music';
+import {
+  MusicTrack,
+  Playlist,
+  RepeatMode,
+  ArtworkAspectRatio,
+  LyricsDisplayMode,
+  UserAccount,
+} from '../types/music';
 import { DEMO_TRACKS, DEMO_PLAYLISTS } from '../data/demoData';
 import { extractYouTubeId, extractSmartTrackMeta, isLikelyMusic, isBgmOrClassicalTrack } from '../utils/parser';
 import { getLyricsForTrack } from '../utils/lyricsService';
 import { audioKeepAlive } from '../utils/audioKeepAlive';
+import {
+  GOOGLE_CLIENT_ID,
+  SyncPayload,
+  requestAccessToken,
+  fetchProfile,
+  revokeToken,
+  pullFromCloud,
+  pushToCloud,
+} from '../utils/cloudSync';
 import { saveTracksToDB, loadTracksFromDB, savePlaylistsToDB, loadPlaylistsFromDB, clearDB } from '../utils/db';
 
 declare global {
@@ -65,10 +81,42 @@ interface PlayerContextType {
   importTracks: (newTracks: MusicTrack[]) => void;
   addSingleTrackByUrl: (urlOrId: string, customTitle?: string, customArtist?: string) => boolean;
   clearAllData: () => void;
-  createPlaylist: (name: string, trackIds: string[]) => void;
+  createPlaylist: (name: string, description?: string, color?: string, initialTrackIds?: string[]) => Playlist;
+  updatePlaylist: (playlistId: string, updates: Partial<Playlist>) => void;
+  deletePlaylist: (playlistId: string) => void;
+  addTrackToPlaylist: (playlistId: string, trackId: string) => void;
+  removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
   resyncPlayer: () => void;
   unmuteAudio: () => void;
   isPlayerMuted: boolean;
+  // Lyrics offset & display mode
+  lyricsOffset: number;
+  adjustLyricsOffset: (delta: number) => void;
+  resetLyricsOffset: () => void;
+  lyricsDisplayMode: LyricsDisplayMode;
+  setLyricsDisplayMode: (mode: LyricsDisplayMode) => void;
+  // Artwork aspect ratio
+  artworkAspectRatio: ArtworkAspectRatio;
+  setArtworkAspectRatio: (ratio: ArtworkAspectRatio) => void;
+  // Retro Player (iPod / Walkman)
+  isRetroPlayerOpen: boolean;
+  setIsRetroPlayerOpen: (open: boolean) => void;
+  retroPlayerSkin: 'ipod' | 'walkman';
+  setRetroPlayerSkin: (skin: 'ipod' | 'walkman') => void;
+  // Background Guide
+  isBgGuideOpen: boolean;
+  setIsBgGuideOpen: (open: boolean) => void;
+  // Cloud & Account
+  currentUser: UserAccount | null;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => void;
+  isCloudSyncing: boolean;
+  syncWithCloud: () => Promise<void>;
+  cloudConfigured: boolean;
+  cloudError: string | null;
+  // YouTube側の視聴履歴にも記録させる（埋め込みをyoutube.com経由にする。反映には再読み込みが必要）
+  recordYtHistory: boolean;
+  setRecordYtHistory: (v: boolean) => void;
 }
 
 const STORAGE_KEY_TRACKS = 'melotrace_tracks_v5';
@@ -79,6 +127,8 @@ const STORAGE_KEY_BANNED_TRACKS = 'melotrace_banned_tracks_v1';
 const STORAGE_KEY_STRICTNESS = 'melotrace_strictness_v1';
 const STORAGE_KEY_LAST_TRACK_ID = 'melotrace_last_track_id_v5';
 const STORAGE_KEY_LAST_QUEUE_IDS = 'melotrace_last_queue_ids_v5';
+const YT_HISTORY_KEY = 'melotrace_record_yt_history_v1';
+const LOCAL_MODIFIED_KEY = 'melotrace_local_modified_v1';
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
 
@@ -216,8 +266,43 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [nowPlayingTab, setNowPlayingTab] = useState<'video' | 'lyrics' | 'art' | 'queue'>('art');
   const [isLoadingLyrics, setIsLoadingLyrics] = useState<boolean>(false);
   const [isBuffering, setIsBuffering] = useState<boolean>(false);
-  const [isAdPlaying, setIsAdPlaying] = useState<boolean>(false);
   const [isPlayerMuted, setIsPlayerMuted] = useState<boolean>(false);
+
+  // New States: Lyrics offset, lyrics display mode, artwork ratio, retro mode, cloud sync
+  const [lyricsOffset, setLyricsOffset] = useState<number>(0);
+  const [lyricsDisplayMode, setLyricsDisplayModeState] = useState<LyricsDisplayMode>(() => {
+    try {
+      const saved = localStorage.getItem('melotrace_lyrics_mode_v1');
+      if (saved === 'static' || saved === 'dynamic') return saved as LyricsDisplayMode;
+    } catch (e) {}
+    return 'dynamic';
+  });
+  const [artworkAspectRatio, setArtworkAspectRatioState] = useState<ArtworkAspectRatio>(() => {
+    try {
+      const saved = localStorage.getItem('melotrace_artwork_ratio_v1');
+      if (saved === 'auto' || saved === '1:1' || saved === '16:9') return saved as ArtworkAspectRatio;
+    } catch (e) {}
+    return 'auto';
+  });
+  const [isRetroPlayerOpen, setIsRetroPlayerOpen] = useState<boolean>(false);
+  const [retroPlayerSkin, setRetroPlayerSkin] = useState<'ipod' | 'walkman'>('ipod');
+  const [isBgGuideOpen, setIsBgGuideOpen] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    try {
+      const saved = localStorage.getItem('melotrace_user_account_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
+  });
+  const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
+  const [recordYtHistory, setRecordYtHistoryState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(YT_HISTORY_KEY) === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
 
   const ytPlayerRef = useRef<any>(null);
   const pendingTrackRef = useRef<MusicTrack | null>(null);
@@ -228,6 +313,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const handleTrackEndedRef = useRef<() => void>(() => {});
   const currentTrackRef = useRef<MusicTrack | null>(currentTrack);
   const playbackRateRef = useRef<number>(playbackRate);
+  const [isAdPlaying, setIsAdPlaying] = useState<boolean>(false);
   const isAdPlayingRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -397,7 +483,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           height: '100%',
           width: '100%',
           videoId: currentTrack?.id || 'ZRtdQ81jPUQ',
-          host: 'https://www.youtube-nocookie.com',
+          host: (() => {
+            try {
+              return localStorage.getItem(YT_HISTORY_KEY) === 'true' ? 'https://www.youtube.com' : 'https://www.youtube-nocookie.com';
+            } catch (e) {
+              return 'https://www.youtube-nocookie.com';
+            }
+          })(),
           playerVars: {
             autoplay: 0,
             playsinline: 1,
@@ -946,16 +1038,289 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentTrack, currentTime, unmuteAudio]);
 
-  const createPlaylist = useCallback((name: string, trackIds: string[]) => {
-    const newPl: Playlist = {
-      id: 'pl_' + Date.now(),
-      name,
-      trackIds,
-      createdAt: new Date().toISOString().slice(0, 16),
-      updatedAt: new Date().toISOString().slice(0, 16),
-    };
-    setPlaylists((prev) => [newPl, ...prev]);
+  // Reset lyrics offset whenever track changes
+  useEffect(() => {
+    setLyricsOffset(0);
+  }, [currentTrack?.id]);
+
+  const adjustLyricsOffset = useCallback((delta: number) => {
+    setLyricsOffset((prev) => Math.round((prev + delta) * 10) / 10);
   }, []);
+
+  const resetLyricsOffset = useCallback(() => {
+    setLyricsOffset(0);
+  }, []);
+
+  const setLyricsDisplayMode = useCallback((mode: LyricsDisplayMode) => {
+    setLyricsDisplayModeState(mode);
+    try {
+      localStorage.setItem('melotrace_lyrics_mode_v1', mode);
+    } catch (e) {}
+  }, []);
+
+  const setArtworkAspectRatio = useCallback((ratio: ArtworkAspectRatio) => {
+    setArtworkAspectRatioState(ratio);
+    try {
+      localStorage.setItem('melotrace_artwork_ratio_v1', ratio);
+    } catch (e) {}
+  }, []);
+
+  const createPlaylist = useCallback(
+    (name: string, description?: string, color?: string, initialTrackIds: string[] = []): Playlist => {
+      const newPl: Playlist = {
+        id: 'pl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        name: name.trim() || '新規プレイリスト',
+        description: description?.trim(),
+        color: color || '#fa2d48',
+        coverTrackId: initialTrackIds[0],
+        trackIds: initialTrackIds,
+        createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+        updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      };
+      setPlaylists((prev) => [newPl, ...prev]);
+      return newPl;
+    },
+    []
+  );
+
+  const updatePlaylist = useCallback((playlistId: string, updates: Partial<Playlist>) => {
+    setPlaylists((prev) =>
+      prev.map((pl) =>
+        pl.id === playlistId
+          ? { ...pl, ...updates, updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16) }
+          : pl
+      )
+    );
+  }, []);
+
+  const deletePlaylist = useCallback((playlistId: string) => {
+    setPlaylists((prev) => prev.filter((pl) => pl.id !== playlistId));
+  }, []);
+
+  const addTrackToPlaylist = useCallback((playlistId: string, trackId: string) => {
+    setPlaylists((prev) =>
+      prev.map((pl) => {
+        if (pl.id === playlistId) {
+          if (pl.trackIds.includes(trackId)) return pl;
+          return {
+            ...pl,
+            trackIds: [...pl.trackIds, trackId],
+            coverTrackId: pl.coverTrackId || trackId,
+            updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+          };
+        }
+        return pl;
+      })
+    );
+  }, []);
+
+  const removeTrackFromPlaylist = useCallback((playlistId: string, trackId: string) => {
+    setPlaylists((prev) =>
+      prev.map((pl) => {
+        if (pl.id === playlistId) {
+          const nextIds = pl.trackIds.filter((id) => id !== trackId);
+          return {
+            ...pl,
+            trackIds: nextIds,
+            coverTrackId: pl.coverTrackId === trackId ? nextIds[0] : pl.coverTrackId,
+            updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+          };
+        }
+        return pl;
+      })
+    );
+  }, []);
+
+  const setRecordYtHistory = useCallback((v: boolean) => {
+    setRecordYtHistoryState(v);
+    try {
+      localStorage.setItem(YT_HISTORY_KEY, String(v));
+    } catch (e) {}
+  }, []);
+
+  // ---- Cloud sync (Google Drive appDataFolder) ----
+  const tokenRef = useRef<{ accessToken: string; expiresAt: number } | null>(null);
+  const cloudFileIdRef = useRef<string | null>(null);
+  const cloudExtraFavRef = useRef<string[]>([]); // クラウド上にあるが、この端末のライブラリに無い曲のスキ
+  const syncingRef = useRef(false);
+  const skipNextSigRef = useRef(false);
+
+  const nowIso = () => new Date().toISOString();
+
+  const buildPayload = useCallback((): SyncPayload => {
+    const localFav = tracks.filter((t) => t.isFavorite).map((t) => t.id);
+    const known = new Set(tracks.map((t) => t.id));
+    const keep = cloudExtraFavRef.current.filter((id) => !known.has(id));
+    let modified = nowIso();
+    try {
+      modified = localStorage.getItem(LOCAL_MODIFIED_KEY) || modified;
+    } catch (e) {}
+    return {
+      version: 1,
+      updatedAt: modified,
+      favoriteIds: Array.from(new Set([...localFav, ...keep])),
+      bannedArtists,
+      bannedTracks,
+      playlists,
+      settings: { strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin },
+    };
+  }, [tracks, bannedArtists, bannedTracks, playlists, strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin]);
+
+  const applyPayload = useCallback((p: SyncPayload) => {
+    const favSet = new Set(p.favoriteIds);
+    setTracks((prev) => {
+      cloudExtraFavRef.current = p.favoriteIds.filter((id) => !prev.some((t) => t.id === id));
+      return prev.map((t) => (t.isFavorite === favSet.has(t.id) ? t : { ...t, isFavorite: favSet.has(t.id) }));
+    });
+    setBannedArtists(p.bannedArtists || []);
+    setBannedTracks(p.bannedTracks || []);
+    setPlaylists(p.playlists || []);
+    if (p.settings?.strictnessMode) setStrictnessModeState(p.settings.strictnessMode);
+    if (p.settings?.lyricsDisplayMode) setLyricsDisplayModeState(p.settings.lyricsDisplayMode);
+    if (p.settings?.artworkAspectRatio) setArtworkAspectRatioState(p.settings.artworkAspectRatio);
+    if (p.settings?.retroPlayerSkin) setRetroPlayerSkin(p.settings.retroPlayerSkin);
+  }, []);
+
+  const ensureToken = useCallback(async () => {
+    const t = tokenRef.current;
+    if (t && t.expiresAt > Date.now()) return t.accessToken;
+    // 期限切れ（約1時間）: 同意済みなら無操作で更新を試みる（ブラウザによってはポップアップが開く）
+    const fresh = await requestAccessToken('');
+    tokenRef.current = fresh;
+    return fresh.accessToken;
+  }, []);
+
+  const runSync = useCallback(
+    async () => {
+      if (syncingRef.current) return;
+      syncingRef.current = true;
+      setIsCloudSyncing(true);
+      setCloudError(null);
+      try {
+        const token = await ensureToken();
+        const remote = await pullFromCloud(token);
+        let localModified = '';
+        try {
+          localModified = localStorage.getItem(LOCAL_MODIFIED_KEY) || '';
+        } catch (e) {}
+        if (remote) cloudFileIdRef.current = remote.fileId;
+        if (remote && remote.payload.updatedAt > localModified) {
+          skipNextSigRef.current = true;
+          setTimeout(() => {
+            skipNextSigRef.current = false;
+          }, 1500);
+          applyPayload(remote.payload);
+          try {
+            localStorage.setItem(LOCAL_MODIFIED_KEY, remote.payload.updatedAt);
+          } catch (e) {}
+        } else {
+          cloudFileIdRef.current = await pushToCloud(token, buildPayload(), cloudFileIdRef.current);
+        }
+        const done = nowIso().replace('T', ' ').slice(0, 16);
+        setCurrentUser((u) => {
+          if (!u) return u;
+          const updated = { ...u, lastSync: done };
+          try {
+            localStorage.setItem('melotrace_user_account_v1', JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
+      } catch (e: any) {
+        setCloudError(e?.message || '同期に失敗しました');
+      } finally {
+        syncingRef.current = false;
+        setIsCloudSyncing(false);
+      }
+    },
+    [ensureToken, applyPayload, buildPayload]
+  );
+
+  const loginWithGoogle = useCallback(async () => {
+    if (!GOOGLE_CLIENT_ID) {
+      setCloudError('Googleログインはまだ設定されていません（VITE_GOOGLE_CLIENT_ID が未設定です）');
+      return;
+    }
+    setIsCloudSyncing(true);
+    setCloudError(null);
+    try {
+      const tok = await requestAccessToken('select_account');
+      tokenRef.current = tok;
+      const prof = await fetchProfile(tok.accessToken);
+      const user: UserAccount = {
+        uid: prof.sub,
+        email: prof.email,
+        displayName: prof.name || prof.email,
+        photoURL: prof.picture,
+      };
+      setCurrentUser(user);
+      localStorage.setItem('melotrace_user_account_v1', JSON.stringify(user));
+    } catch (e: any) {
+      setCloudError(e?.message || 'ログインに失敗しました');
+      setIsCloudSyncing(false);
+      return;
+    }
+    setIsCloudSyncing(false);
+    await runSync();
+  }, [runSync]);
+
+  const logout = useCallback(() => {
+    if (tokenRef.current) revokeToken(tokenRef.current.accessToken);
+    tokenRef.current = null;
+    cloudFileIdRef.current = null;
+    setCurrentUser(null);
+    setCloudError(null);
+    localStorage.removeItem('melotrace_user_account_v1');
+  }, []);
+
+  const syncWithCloud = useCallback(async () => {
+    if (!currentUser) return;
+    await runSync();
+  }, [currentUser, runSync]);
+
+  // 同期対象（スキ・Ban・プレイリスト・設定）が変わったら更新時刻を記録し、ログイン中なら自動でクラウドへ保存
+  const syncSignature = useMemo(
+    () =>
+      JSON.stringify([
+        tracks.filter((t) => t.isFavorite).map((t) => t.id),
+        bannedArtists,
+        bannedTracks,
+        playlists,
+        strictnessMode,
+        lyricsDisplayMode,
+        artworkAspectRatio,
+        retroPlayerSkin,
+      ]),
+    [tracks, bannedArtists, bannedTracks, playlists, strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin]
+  );
+  const lastSigRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastSigRef.current === null) {
+      lastSigRef.current = syncSignature;
+      return;
+    }
+    if (lastSigRef.current === syncSignature) return;
+    lastSigRef.current = syncSignature;
+    // クラウドからの反映による変化は「ローカル編集」として扱わない
+    if (skipNextSigRef.current) {
+      skipNextSigRef.current = false;
+      return;
+    }
+    try {
+      localStorage.setItem(LOCAL_MODIFIED_KEY, nowIso());
+    } catch (e) {}
+    if (!currentUser || !tokenRef.current || tokenRef.current.expiresAt <= Date.now()) return;
+    const timer = setTimeout(async () => {
+      try {
+        const token = tokenRef.current?.accessToken;
+        if (!token) return;
+        cloudFileIdRef.current = await pushToCloud(token, buildPayload(), cloudFileIdRef.current);
+        setCloudError(null);
+      } catch (e: any) {
+        setCloudError(e?.message || '自動保存に失敗しました');
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [syncSignature, currentUser, buildPayload]);
 
   // Register iOS Lock Screen and MediaSession action listeners
   useEffect(() => {
@@ -1048,9 +1413,35 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         addSingleTrackByUrl,
         clearAllData,
         createPlaylist,
+        updatePlaylist,
+        deletePlaylist,
+        addTrackToPlaylist,
+        removeTrackFromPlaylist,
         resyncPlayer,
         unmuteAudio,
         isPlayerMuted,
+        lyricsOffset,
+        adjustLyricsOffset,
+        resetLyricsOffset,
+        lyricsDisplayMode,
+        setLyricsDisplayMode,
+        artworkAspectRatio,
+        setArtworkAspectRatio,
+        isRetroPlayerOpen,
+        setIsRetroPlayerOpen,
+        retroPlayerSkin,
+        setRetroPlayerSkin,
+        isBgGuideOpen,
+        setIsBgGuideOpen,
+        currentUser,
+        loginWithGoogle,
+        logout,
+        isCloudSyncing,
+        syncWithCloud,
+        cloudConfigured: Boolean(GOOGLE_CLIENT_ID),
+        cloudError,
+        recordYtHistory,
+        setRecordYtHistory,
       }}
     >
       {children}

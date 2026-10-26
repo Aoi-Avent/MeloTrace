@@ -13,6 +13,9 @@ import { RadioView } from './components/RadioView';
 import { LibraryView } from './components/LibraryView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { DataImportView } from './components/DataImportView';
+import { ArtistsView } from './components/ArtistsView';
+import { RetroPlayer } from './components/RetroPlayer';
+import { BackgroundGuideModal } from './components/BackgroundGuide';
 import { SearchView } from './components/SearchView';
 import { ArtistDetailModal } from './components/ArtistDetailModal';
 import { QuickRecoveryModal } from './components/QuickRecoveryModal';
@@ -80,7 +83,7 @@ const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_ACTIVE_TAB) as ActiveTab;
-      if (saved && ['home', 'radio', 'library', 'search', 'analytics', 'import'].includes(saved)) {
+      if (saved && ['home', 'radio', 'library', 'artists', 'search', 'analytics', 'import'].includes(saved)) {
         return saved;
       }
     } catch (e) {
@@ -134,6 +137,7 @@ const AppContent: React.FC = () => {
         {activeTab === 'home' && <HomeView setActiveTab={setActiveTab} />}
         {activeTab === 'radio' && <RadioView />}
         {activeTab === 'library' && <LibraryView />}
+        {activeTab === 'artists' && <ArtistsView />}
         {activeTab === 'search' && (
           <SearchView onSelectArtist={(artist) => setSelectedArtistForDetail(artist)} />
         )}
@@ -149,6 +153,9 @@ const AppContent: React.FC = () => {
 
       {/* Apple Music Full-Screen Now Playing Modal Sheet */}
       <NowPlayingModal />
+
+      <RetroPlayer />
+      <BackgroundGuideModal />
 
       {/* Apple Music Artist Catalog Deep-Dive Modal */}
       <ArtistDetailModal

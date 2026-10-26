@@ -10,10 +10,12 @@ import {
   Flame,
   Heart,
   Music2,
+  Disc,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { ActiveTab, QuickMixItem } from '../types/music';
 import { QUICK_MIXES } from '../data/quickMixes';
+import { BackgroundPlayButton } from './BackgroundGuide';
 
 interface HomeViewProps {
   setActiveTab: (tab: ActiveTab) => void;
@@ -34,6 +36,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
     toggleFavorite,
     setIsShuffle,
     setSelectedArtistForDetail,
+    setIsRetroPlayerOpen,
   } = usePlayer();
 
   const tracks = musicTracks.length > 0 ? musicTracks : activeTracks;
@@ -125,6 +128,16 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
       <h1 className="text-3xl font-extrabold text-white tracking-tight mb-4">
         今すぐ聴く
       </h1>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <BackgroundPlayButton compact />
+        <button
+          onClick={() => setIsRetroPlayerOpen(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white text-[11px] font-semibold active:scale-95 transition"
+        >
+          <Disc className="w-3.5 h-3.5 text-[#ff9f0a]" />
+          <span>iPod / Walkman モード</span>
+        </button>
+      </div>
 
       {/* Empty / Zero-state banner */}
       {tracks.length === 0 && (
