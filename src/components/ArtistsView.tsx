@@ -127,7 +127,7 @@ export const ArtistsView: React.FC = () => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="アーティスト・チャンネルを検索"
-          className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#1c1c1e] text-sm text-white placeholder:text-[#8e8e93] focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+          className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#1c1c1e] text-sm text-white placeholder:text-[#8e8e93] focus:outline-none focus:ring-1 focus:ring-accent"
         />
       </div>
 
@@ -170,7 +170,7 @@ export const ArtistsView: React.FC = () => {
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-semibold text-white truncate">{a.name}</h4>
               <p className="text-[11px] text-[#8e8e93] truncate flex items-center gap-1">
-                {sortKey === 'favorites' && <Heart className="w-3 h-3 text-[#fa2d48] fill-[#fa2d48]" />}
+                {sortKey === 'favorites' && <Heart className="w-3 h-3 text-accent fill-accent" />}
                 {subtitle(a)}
               </p>
             </div>

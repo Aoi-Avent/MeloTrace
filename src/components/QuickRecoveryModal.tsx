@@ -68,7 +68,7 @@ export const QuickRecoveryModal: React.FC = () => {
 
         <button
           onClick={() => setIsOpen(true)}
-          className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-[#8e8e93] hover:text-white backdrop-blur-md border border-white/10 active:scale-90 transition-all shadow-sm"
+          className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-[#8e8e93] hover:text-white border border-white/10 active:scale-90 transition-all shadow-sm"
           title="アプリの復旧・再読み込みメニュー"
           aria-label="復旧メニュー"
         >
@@ -86,11 +86,11 @@ export const QuickRecoveryModal: React.FC = () => {
 
       {/* Recovery Modal Sheet */}
       {isOpen && (
-        <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-3 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[90] bg-black/80 flex items-end sm:items-center justify-center p-3 animate-in fade-in duration-200">
           <div className="w-full max-w-sm rounded-3xl apple-card p-5 shadow-2xl border border-white/15 flex flex-col gap-3">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-[#fa2d48]/15 border border-[#fa2d48]/30 flex items-center justify-center text-[#fa2d48]">
+                <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent">
                   <RotateCcw className="w-4 h-4" />
                 </div>
                 <div>
@@ -115,7 +115,7 @@ export const QuickRecoveryModal: React.FC = () => {
                 }}
                 className="w-full p-3 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-98 text-left flex items-center gap-3 transition-all border border-white/5"
               >
-                <div className="w-9 h-9 rounded-xl bg-[#fa2d48]/20 text-[#fa2d48] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-accent/20 text-accent flex items-center justify-center shrink-0">
                   <RotateCcw className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">

@@ -27,6 +27,7 @@ import { parseMhtmlToWatchHistory, MhtmlExtractionResult } from '../utils/mhtmlP
 import { MusicTrack, ActiveTab } from '../types/music';
 import { BackgroundPlayButton } from './BackgroundGuide';
 import { AccountCard } from './AccountCard';
+import { ThemePicker } from './ThemePicker';
 
 const GITHUB_ACTIONS_WORKFLOW_YAML = `name: Deploy to GitHub Pages
 
@@ -328,6 +329,8 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         <BackgroundPlayButton compact className="mt-2" />
       </header>
 
+      <ThemePicker />
+
       <AccountCard />
 
       {/* Current Data & Ban Status Bar */}
@@ -349,7 +352,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         {bannedArtists.length + bannedTracks.length > 0 && (
           <button
             onClick={() => setShowBannedModal(true)}
-            className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#fa2d48]/20 text-[#fa2d48] hover:bg-[#fa2d48]/30 transition-colors"
+            className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
           >
             Banリスト管理
           </button>
@@ -360,7 +363,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       <section className="mb-6 p-5 rounded-2xl apple-card">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-            <Filter className="w-4 h-4 text-[#fa2d48]" />
+            <Filter className="w-4 h-4 text-accent" />
             <span>音楽判定の厳格度（切り抜き・雑談の徹底除外）</span>
           </h3>
         </div>
@@ -391,14 +394,14 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
               onClick={() => setStrictnessMode(mode.id as any)}
               className={`p-2.5 rounded-xl border text-left transition-all ${
                 strictnessMode === mode.id
-                  ? 'border-[#fa2d48] bg-[#fa2d48]/15 text-white'
+                  ? 'border-accent bg-accent/15 text-white'
                   : 'border-white/5 bg-white/[0.03] text-[#8e8e93] hover:text-white'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold">{mode.title}</span>
                 {strictnessMode === mode.id && (
-                  <Check className="w-3.5 h-3.5 text-[#fa2d48]" />
+                  <Check className="w-3.5 h-3.5 text-accent" />
                 )}
               </div>
               <p className="text-[10px] opacity-75 line-clamp-2 leading-tight">
@@ -441,7 +444,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       <section className="mb-6 p-5 rounded-2xl apple-card border border-white/10">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-            <ArrowDownToLine className="w-4 h-4 text-[#fa2d48]" />
+            <ArrowDownToLine className="w-4 h-4 text-accent" />
             <span>ライブラリの書き出しと読み込み (JSON)</span>
           </h3>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#d1d1d6] font-semibold">
@@ -455,7 +458,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         <div className="grid grid-cols-2 gap-2.5">
           <button
             onClick={handleExportJson}
-            className="py-3 px-3 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md shadow-[#fa2d48]/20"
+            className="py-3 px-3 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md shadow-accent/20"
           >
             <Download className="w-4 h-4" />
             <span>ライブラリを書き出す</span>
@@ -529,7 +532,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
             <p className="text-xs text-white/90">
               抽出履歴: <span className="font-bold text-white">{mhtmlResult.totalExtracted.toLocaleString()}件</span>
               {mhtmlExtractedTracks.length > 0 && (
-                <span>（音楽・ボカロ等: <span className="font-bold text-[#fa2d48]">{mhtmlExtractedTracks.length.toLocaleString()}曲</span>）</span>
+                <span>（音楽・ボカロ等: <span className="font-bold text-accent">{mhtmlExtractedTracks.length.toLocaleString()}曲</span>）</span>
               )}
             </p>
 
@@ -546,7 +549,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
               <button
                 type="button"
                 onClick={handleImportMhtmlTracks}
-                className="py-2.5 px-3 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-[#fa2d48]/20 active:scale-95"
+                className="py-2.5 px-3 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-accent/20 active:scale-95"
               >
                 <Upload className="w-3.5 h-3.5" />
                 <span>ライブラリに取り込む</span>
@@ -560,7 +563,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       <section className="mb-6 p-5 rounded-2xl apple-card">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-            <Upload className="w-4 h-4 text-[#fa2d48]" />
+            <Upload className="w-4 h-4 text-accent" />
             <span>Google Takeout（自分のYouTube全履歴を取り込む）</span>
           </h3>
         </div>
@@ -572,7 +575,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         {/* 2-Step Frictionless Guide Card */}
         <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 mb-4 flex flex-col gap-3">
           <div className="flex items-start gap-2.5">
-            <div className="w-5 h-5 rounded-full bg-[#fa2d48] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+            <div className="w-5 h-5 rounded-full bg-accent text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
               1
             </div>
             <div>
@@ -584,7 +587,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
                 href="https://takeout.google.com/settings/takeout/custom/youtube"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-[#fa2d48] font-bold mt-1.5 hover:underline"
+                className="inline-flex items-center gap-1 text-xs text-accent font-bold mt-1.5 hover:underline"
               >
                 <span>Google Takeout（YouTube専用）を開く</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -614,7 +617,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
             className="hidden"
             disabled={isLoadingFile}
           />
-          <div className="w-full py-5 px-4 rounded-xl border border-dashed border-white/20 hover:border-[#fa2d48] hover:bg-white/[0.02] active:scale-[0.99] transition-all cursor-pointer flex flex-col items-center justify-center gap-2 text-center">
+          <div className="w-full py-5 px-4 rounded-xl border border-dashed border-white/20 hover:border-accent hover:bg-white/[0.02] active:scale-[0.99] transition-all cursor-pointer flex flex-col items-center justify-center gap-2 text-center">
             <FileText className="w-7 h-7 text-[#8e8e93]" />
             <span className="text-xs font-bold text-white">
               {isLoadingFile ? '高精度フィルタリング解析中...' : 'watch-history.json を選んで取り込む'}
@@ -632,7 +635,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
           </div>
         )}
         {errorMessage && (
-          <div className="mt-3 p-3 rounded-xl bg-[#fa2d48]/15 border border-[#fa2d48]/30 text-[#fa2d48] text-xs flex items-center gap-2">
+          <div className="mt-3 p-3 rounded-xl bg-accent/15 border border-accent/30 text-accent text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMessage}</span>
           </div>
@@ -674,7 +677,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       {/* SECTION 5: QUICK URL ADD */}
       <section className="mb-6 p-5 rounded-2xl apple-card">
         <h3 className="text-sm font-bold text-white tracking-tight mb-1 flex items-center gap-2">
-          <Plus className="w-4 h-4 text-[#fa2d48]" />
+          <Plus className="w-4 h-4 text-accent" />
           <span>YouTubeのURLから曲を即時追加</span>
         </h3>
         <p className="text-xs text-[#8e8e93] mb-3 leading-relaxed">
@@ -687,11 +690,11 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
             placeholder="https://youtu.be/... または watch?v=..."
             value={quickUrl}
             onChange={(e) => setQuickUrl(e.target.value)}
-            className="flex-1 px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white placeholder-[#8e8e93] focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+            className="flex-1 px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white placeholder-[#8e8e93] focus:outline-none focus:ring-1 focus:ring-accent"
           />
           <button
             type="submit"
-            className="px-4 py-2 rounded-xl bg-[#fa2d48] text-white text-xs font-semibold hover:bg-[#ff3b56] active:scale-95 transition-all shrink-0"
+            className="px-4 py-2 rounded-xl bg-accent text-white text-xs font-semibold hover:bg-accent-hover active:scale-95 transition-all shrink-0"
           >
             {quickAddSuccess ? '追加済' : '追加'}
           </button>
@@ -805,7 +808,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
                 clearAllData();
               }
             }}
-            className="w-full py-2.5 px-4 rounded-xl bg-[#fa2d48]/10 hover:bg-[#fa2d48]/20 active:scale-98 text-[#fa2d48] text-xs font-medium flex items-center justify-center gap-2 transition-all"
+            className="w-full py-2.5 px-4 rounded-xl bg-accent/10 hover:bg-accent/20 active:scale-98 text-accent text-xs font-medium flex items-center justify-center gap-2 transition-all"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>全データをリセット（初期化）</span>
@@ -815,7 +818,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
 
       {/* BANNED LIST MODAL */}
       {showBannedModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="w-full max-w-sm rounded-2xl apple-card p-5 shadow-2xl border border-white/10 max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div>
@@ -832,7 +835,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
             <div className="overflow-y-auto py-3 flex flex-col gap-3 flex-1 ios-scroll-container">
               {bannedArtists.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold text-[#fa2d48] mb-1.5 uppercase tracking-wider">
+                  <h4 className="text-xs font-bold text-accent mb-1.5 uppercase tracking-wider">
                     除外アーティスト ({bannedArtists.length})
                   </h4>
                   <div className="flex flex-col gap-1.5">
@@ -856,7 +859,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
 
               {bannedTracks.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold text-[#fa2d48] mb-1.5 uppercase tracking-wider">
+                  <h4 className="text-xs font-bold text-accent mb-1.5 uppercase tracking-wider">
                     除外動画ID ({bannedTracks.length})
                   </h4>
                   <div className="flex flex-col gap-1.5">

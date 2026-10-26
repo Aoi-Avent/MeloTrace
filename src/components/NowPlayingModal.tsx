@@ -277,7 +277,7 @@ export const NowPlayingModal: React.FC = () => {
       {/* Apple Music Fluid Live Blurred Ambient Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
         <div
-          className="w-full h-full scale-175 blur-[80px] opacity-45 bg-cover bg-center transition-all duration-700"
+          className="w-full h-full opacity-35 bg-cover bg-center"
           style={{
             backgroundImage: `url(https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg)`,
           }}
@@ -320,13 +320,13 @@ export const NowPlayingModal: React.FC = () => {
           <button
             onClick={() => setShowTimerMenu(!showTimerMenu)}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors relative ${
-              sleepTimerMinutes ? 'text-[#fa2d48] bg-[#fa2d48]/20' : 'text-[#8e8e93] hover:text-white'
+              sleepTimerMinutes ? 'text-accent bg-accent/20' : 'text-[#8e8e93] hover:text-white'
             }`}
             title="スリープタイマー"
           >
             <Timer className="w-5 h-5" />
             {sleepTimerMinutes && (
-              <span className="absolute -top-1 -right-1 px-1 bg-[#fa2d48] text-[9px] font-bold text-white rounded-full">
+              <span className="absolute -top-1 -right-1 px-1 bg-accent text-[9px] font-bold text-white rounded-full">
                 {sleepTimerMinutes}m
               </span>
             )}
@@ -353,7 +353,7 @@ export const NowPlayingModal: React.FC = () => {
             }}
             className="px-3 py-2 text-xs text-left text-white hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
           >
-            <Sparkles className="w-3.5 h-3.5 text-[#fa2d48]" />
+            <Sparkles className="w-3.5 h-3.5 text-accent" />
             <span>このアーティストの他の曲</span>
           </button>
           <button
@@ -362,7 +362,7 @@ export const NowPlayingModal: React.FC = () => {
               setShowMoreMenu(false);
               nextTrack();
             }}
-            className="px-3 py-2 text-xs text-left text-[#fa2d48] hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
+            className="px-3 py-2 text-xs text-left text-accent hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
           >
             <Ban className="w-3.5 h-3.5" />
             <span>この曲を非表示 (スキップ)</span>
@@ -373,7 +373,7 @@ export const NowPlayingModal: React.FC = () => {
               setShowMoreMenu(false);
               nextTrack();
             }}
-            className="px-3 py-2 text-xs text-left text-[#fa2d48] hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
+            className="px-3 py-2 text-xs text-left text-accent hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
           >
             <Ban className="w-3.5 h-3.5" />
             <span>このアーティストをBan</span>
@@ -411,7 +411,7 @@ export const NowPlayingModal: React.FC = () => {
                 setShowMoreMenu(false);
                 handleClearLyrics();
               }}
-              className="px-3 py-2 text-xs text-left text-[#fa2d48] hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
+              className="px-3 py-2 text-xs text-left text-accent hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>現在の歌詞を消去（リセット）</span>
@@ -439,7 +439,7 @@ export const NowPlayingModal: React.FC = () => {
               }}
               className={`px-3 py-2 text-xs text-left rounded-xl transition-colors ${
                 sleepTimerMinutes === item.val
-                  ? 'bg-[#fa2d48] text-white font-semibold'
+                  ? 'bg-accent text-white font-semibold'
                   : 'text-[#f5f5f7] hover:bg-white/10'
               }`}
             >
@@ -473,7 +473,7 @@ export const NowPlayingModal: React.FC = () => {
               />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-                <Disc3 className="w-16 h-16 text-[#fa2d48] animate-spin mb-2" />
+                <Disc3 className="w-16 h-16 text-accent animate-spin mb-2" />
                 <p className="text-sm font-bold text-white line-clamp-2">{currentTrack.title}</p>
                 <p className="text-xs text-[#8e8e93] mt-1">{currentTrack.artist}</p>
               </div>
@@ -481,19 +481,19 @@ export const NowPlayingModal: React.FC = () => {
 
             {/* Vocaloid or Cover Tag */}
             {trackMeta?.originalProducer && (
-              <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-[10px] font-bold text-[#af52de] border border-white/10">
+              <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-full bg-black/70 text-[10px] font-bold text-[#af52de] border border-white/10">
                 ボカロ原曲: {trackMeta.originalProducer}
               </div>
             )}
 
             {/* Apple Music Fluid Waveform Visualizer */}
             {isPlaying && (
-              <div className="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 flex items-end gap-[3px] h-6 shadow-lg">
-                <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-1" />
-                <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-2" />
-                <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-3" />
-                <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-4" />
-                <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-5" />
+              <div className="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-full bg-black/70 border border-white/10 flex items-end gap-[3px] h-6 shadow-lg">
+                <span className="w-1 bg-accent rounded-full apple-eq-bar-1" />
+                <span className="w-1 bg-accent rounded-full apple-eq-bar-2" />
+                <span className="w-1 bg-accent rounded-full apple-eq-bar-3" />
+                <span className="w-1 bg-accent rounded-full apple-eq-bar-4" />
+                <span className="w-1 bg-accent rounded-full apple-eq-bar-5" />
               </div>
             )}
           </div>
@@ -515,9 +515,9 @@ export const NowPlayingModal: React.FC = () => {
         {nowPlayingTab === 'lyrics' && (
           <div className="w-full h-full flex flex-col items-center justify-start max-h-[380px]">
             {/* Top Lyrics Action Ribbon */}
-            <div className="w-full max-w-sm flex items-center justify-between px-3 py-1.5 mb-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 text-xs shrink-0 z-20">
+            <div className="w-full max-w-sm flex items-center justify-between px-3 py-1.5 mb-2 rounded-xl bg-white/10 border border-white/10 text-xs shrink-0 z-20">
               <div className="flex items-center gap-1.5 text-white/80 font-medium">
-                <Quote className="w-3.5 h-3.5 text-[#fa2d48]" />
+                <Quote className="w-3.5 h-3.5 text-accent" />
                 <span className="text-[11px] font-bold">歌詞設定</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -540,7 +540,7 @@ export const NowPlayingModal: React.FC = () => {
                   className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-medium transition-colors"
                   title="歌詞を再取得してタイミングを再同期"
                 >
-                  <RotateCcw className={`w-3.5 h-3.5 ${isReSearching ? 'animate-spin text-[#fa2d48]' : ''}`} />
+                  <RotateCcw className={`w-3.5 h-3.5 ${isReSearching ? 'animate-spin text-accent' : ''}`} />
                 </button>
                 <button
                   onClick={() => {
@@ -555,7 +555,7 @@ export const NowPlayingModal: React.FC = () => {
                 {currentTrack.lyrics && (
                   <button
                     onClick={handleClearLyrics}
-                    className="p-1.5 rounded-lg bg-white/10 hover:bg-[#fa2d48]/20 text-[#8e8e93] hover:text-[#fa2d48] text-[11px] font-medium transition-colors"
+                    className="p-1.5 rounded-lg bg-white/10 hover:bg-accent/20 text-[#8e8e93] hover:text-accent text-[11px] font-medium transition-colors"
                     title="この曲の歌詞を消去（リセット）"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -566,7 +566,7 @@ export const NowPlayingModal: React.FC = () => {
 
             {isLoadingLyrics ? (
               <div className="m-auto flex flex-col items-center gap-3 text-white/60">
-                <Loader2 className="w-7 h-7 text-[#fa2d48] animate-spin" />
+                <Loader2 className="w-7 h-7 text-accent animate-spin" />
                 <p className="text-xs font-medium">歌詞データを検索中...</p>
               </div>
             ) : parsedLyrics.length > 0 ? (
@@ -586,7 +586,7 @@ export const NowPlayingModal: React.FC = () => {
                   </div>
                   <button
                     onClick={() => setAlignMode((v) => !v)}
-                    className={`px-2 py-1.5 rounded-full flex items-center gap-1 ${alignMode ? 'bg-[#fa2d48] text-white' : 'bg-white/10'}`}
+                    className={`px-2 py-1.5 rounded-full flex items-center gap-1 ${alignMode ? 'bg-accent text-white' : 'bg-white/10'}`}
                     title="歌っている行をタップして、その行に合わせます"
                   >
                     <Crosshair className="w-3 h-3" />合わせる
@@ -600,7 +600,7 @@ export const NowPlayingModal: React.FC = () => {
                   </button>
                 </div>
                 {alignMode && (
-                  <p className="text-[10px] text-[#fa2d48] pb-1 px-1 shrink-0">
+                  <p className="text-[10px] text-accent pb-1 px-1 shrink-0">
                     いま歌っている行をタップすると、その行がこの瞬間に来るよう自動調整します。
                   </p>
                 )}
@@ -628,7 +628,7 @@ export const NowPlayingModal: React.FC = () => {
                         style={dynamic ? { width: '83%' } : undefined}
                         className={`cursor-pointer font-bold leading-relaxed text-xl whitespace-pre-wrap break-words origin-left transition-[transform,opacity,color] duration-300 will-change-transform ${
                           isActive
-                            ? `text-white opacity-100 ${dynamic ? 'scale-[1.2]' : 'underline decoration-[#fa2d48] decoration-2 underline-offset-4'}`
+                            ? `text-white opacity-100 ${dynamic ? 'scale-[1.2]' : 'underline decoration-accent decoration-2 underline-offset-4'}`
                             : 'text-white/40 opacity-70 hover:text-white/80'
                         }`}
                       >
@@ -658,7 +658,7 @@ export const NowPlayingModal: React.FC = () => {
                       setShowSearchModal(true);
                       handleExecuteCandidateSearch(trackMeta?.cleanTitle || currentTrack.title, trackMeta?.originalProducer || currentTrack.artist);
                     }}
-                    className="w-full py-2.5 px-3 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-[#fa2d48]/25"
+                    className="w-full py-2.5 px-3 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-accent/25"
                   >
                     <Search className="w-3.5 h-3.5" />
                     <span>歌詞の候補を探す / 再検索</span>
@@ -706,7 +706,7 @@ export const NowPlayingModal: React.FC = () => {
               <h4 className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider">
                 次に再生 ({queue.length}曲)
               </h4>
-              <span className="text-[11px] text-[#fa2d48] font-medium">
+              <span className="text-[11px] text-accent font-medium">
                 {isShuffle ? 'シャッフル中' : '通常再生'}
               </span>
             </div>
@@ -733,9 +733,9 @@ export const NowPlayingModal: React.FC = () => {
                   </div>
                   {isCurrent && (
                     <div className="flex items-end gap-[2px] h-3 shrink-0 px-2">
-                      <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-1" />
-                      <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-2" />
-                      <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-3" />
+                      <span className="w-1 bg-accent rounded-full apple-eq-bar-1" />
+                      <span className="w-1 bg-accent rounded-full apple-eq-bar-2" />
+                      <span className="w-1 bg-accent rounded-full apple-eq-bar-3" />
                     </div>
                   )}
                 </div>
@@ -766,22 +766,22 @@ export const NowPlayingModal: React.FC = () => {
             </h2>
             <button
               onClick={() => setSelectedArtistForDetail(currentTrack.artist)}
-              className="text-base font-medium text-[#8e8e93] hover:text-[#fa2d48] truncate mt-0.5 flex items-center gap-1 group text-left transition-colors max-w-full"
+              className="text-base font-medium text-[#8e8e93] hover:text-accent truncate mt-0.5 flex items-center gap-1 group text-left transition-colors max-w-full"
               title="このアーティストの他の曲・アルバムを開く"
             >
               <span className="truncate group-hover:underline">{currentTrack.artist}</span>
-              <ChevronRight className="w-4 h-4 opacity-70 group-hover:opacity-100 shrink-0 text-[#8e8e93] group-hover:text-[#fa2d48] transition-colors" />
+              <ChevronRight className="w-4 h-4 opacity-70 group-hover:opacity-100 shrink-0 text-[#8e8e93] group-hover:text-accent transition-colors" />
             </button>
           </div>
 
           <button
             onClick={() => toggleFavorite(currentTrack.id)}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-[#fa2d48] active:scale-90 transition-transform shrink-0"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-accent active:scale-90 transition-transform shrink-0"
             aria-label="お気に入り"
           >
             <Heart
               className={`w-6 h-6 ${
-                currentTrack.isFavorite ? 'text-[#fa2d48] fill-[#fa2d48]' : 'stroke-[1.8]'
+                currentTrack.isFavorite ? 'text-accent fill-accent' : 'stroke-[1.8]'
               }`}
             />
           </button>
@@ -812,7 +812,7 @@ export const NowPlayingModal: React.FC = () => {
           <button
             onClick={() => setIsShuffle(!isShuffle)}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-90 ${
-              isShuffle ? 'text-[#fa2d48]' : 'text-[#8e8e93] hover:text-white'
+              isShuffle ? 'text-accent' : 'text-[#8e8e93] hover:text-white'
             }`}
             aria-label="シャッフル"
           >
@@ -852,7 +852,7 @@ export const NowPlayingModal: React.FC = () => {
           <button
             onClick={cycleRepeat}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-90 ${
-              repeatMode !== 'off' ? 'text-[#fa2d48]' : 'text-[#8e8e93] hover:text-white'
+              repeatMode !== 'off' ? 'text-accent' : 'text-[#8e8e93] hover:text-white'
             }`}
             aria-label="リピート"
           >
@@ -930,7 +930,7 @@ export const NowPlayingModal: React.FC = () => {
                     }}
                     className={`px-2 py-1 text-xs text-center rounded-lg ${
                       playbackRate === rate
-                        ? 'bg-[#fa2d48] text-white font-bold'
+                        ? 'bg-accent text-white font-bold'
                         : 'text-white/80 hover:bg-white/10'
                     }`}
                   >
@@ -945,7 +945,7 @@ export const NowPlayingModal: React.FC = () => {
 
       {/* Manual Lyrics Paste Modal */}
       {showManualLyricsModal && (
-        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4">
           <div className="w-full max-w-sm rounded-2xl apple-card p-5 shadow-2xl border border-white/10">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-base font-bold text-white">歌詞の手動登録・編集</h3>
@@ -962,7 +962,7 @@ export const NowPlayingModal: React.FC = () => {
                 value={manualLyricsInput}
                 onChange={(e) => setManualLyricsInput(e.target.value)}
                 placeholder="歌詞テキストをここに貼り付けてください..."
-                className="w-full p-3 rounded-xl bg-[#2c2c2e] text-xs text-white placeholder-[#8e8e93] focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+                className="w-full p-3 rounded-xl bg-[#2c2c2e] text-xs text-white placeholder-[#8e8e93] focus:outline-none focus:ring-1 focus:ring-accent"
                 required
               />
               <div className="flex gap-2">
@@ -975,7 +975,7 @@ export const NowPlayingModal: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 rounded-xl bg-[#fa2d48] text-white text-xs font-bold"
+                  className="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-bold"
                 >
                   保存する
                 </button>
@@ -987,11 +987,11 @@ export const NowPlayingModal: React.FC = () => {
 
       {/* Re-Search / Candidate Selection Lyrics Modal */}
       {showSearchModal && (
-        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-2xl apple-card p-5 shadow-2xl border border-white/10 max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
-                <Search className="w-5 h-5 text-[#fa2d48]" />
+                <Search className="w-5 h-5 text-accent" />
                 <h3 className="text-base font-bold text-white">歌詞の検索・候補選択</h3>
               </div>
               <button
@@ -1020,7 +1020,7 @@ export const NowPlayingModal: React.FC = () => {
                   value={customSearchTitle}
                   onChange={(e) => setCustomSearchTitle(e.target.value)}
                   placeholder="例: 雨とペトラ, About me, 夜に駆ける"
-                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent"
                   required
                 />
               </div>
@@ -1036,14 +1036,14 @@ export const NowPlayingModal: React.FC = () => {
                     if (searchErrorMsg) setSearchErrorMsg(null);
                   }}
                   placeholder="例: バルーン, 蝶々P, YOASOBI"
-                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={isSearchingCandidates || isReSearching}
-                className="w-full py-2.5 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-[#fa2d48]/20 disabled:opacity-50 mt-1"
+                className="w-full py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-accent/20 disabled:opacity-50 mt-1"
               >
                 {isSearchingCandidates || isReSearching ? (
                   <>
@@ -1061,7 +1061,7 @@ export const NowPlayingModal: React.FC = () => {
 
             {/* Error or Info message */}
             {searchErrorMsg && (
-              <div className="p-2.5 rounded-xl bg-[#fa2d48]/15 border border-[#fa2d48]/30 text-[#ff453a] text-[11px] leading-relaxed mb-3 shrink-0">
+              <div className="p-2.5 rounded-xl bg-accent/15 border border-accent/30 text-[#ff453a] text-[11px] leading-relaxed mb-3 shrink-0">
                 {searchErrorMsg}
               </div>
             )}
@@ -1081,7 +1081,7 @@ export const NowPlayingModal: React.FC = () => {
                 return (
                   <div
                     key={cand.id || Math.random()}
-                    className="p-3 rounded-xl bg-white/[0.04] border border-white/10 hover:border-[#fa2d48]/50 transition-colors flex items-center justify-between gap-3"
+                    className="p-3 rounded-xl bg-white/[0.04] border border-white/10 hover:border-accent/50 transition-colors flex items-center justify-between gap-3"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
@@ -1112,7 +1112,7 @@ export const NowPlayingModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleSelectCandidate(cand)}
-                      className="px-3 py-1.5 rounded-lg bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-bold shrink-0 transition-colors active:scale-95 shadow-md shadow-[#fa2d48]/20"
+                      className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-bold shrink-0 transition-colors active:scale-95 shadow-md shadow-accent/20"
                     >
                       適用
                     </button>
@@ -1133,7 +1133,7 @@ export const NowPlayingModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleClearLyrics}
-                  className="px-3 py-2 rounded-xl bg-white/5 hover:bg-[#fa2d48]/20 text-[#fa2d48] text-xs font-medium flex items-center gap-1.5 transition-colors"
+                  className="px-3 py-2 rounded-xl bg-white/5 hover:bg-accent/20 text-accent text-xs font-medium flex items-center gap-1.5 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>歌詞をリセット（消去）</span>

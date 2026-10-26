@@ -82,7 +82,7 @@ export const RadioView: React.FC = () => {
                   ? 'ジャンル'
                   : '履歴発掘'}
               </span>
-              <h3 className="text-sm font-bold text-white group-hover:text-[#fa2d48] transition-colors leading-snug">
+              <h3 className="text-sm font-bold text-white group-hover:text-accent transition-colors leading-snug">
                 {mix.title}
               </h3>
               <p className="text-[11px] text-[#8e8e93] line-clamp-2 mt-1">
@@ -91,10 +91,10 @@ export const RadioView: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between mt-3 relative z-10">
-              <span className="text-[10px] text-[#fa2d48] font-semibold">
+              <span className="text-[10px] text-accent font-semibold">
                 タップでシャッフル
               </span>
-              <div className="w-8 h-8 rounded-full bg-white/10 group-hover:bg-[#fa2d48] group-hover:text-white text-[#d1d1d6] flex items-center justify-center transition-colors shadow-sm">
+              <div className="w-8 h-8 rounded-full bg-white/10 group-hover:bg-accent group-hover:text-white text-[#d1d1d6] flex items-center justify-center transition-colors shadow-sm">
                 <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
               </div>
             </div>

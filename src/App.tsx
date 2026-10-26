@@ -16,6 +16,8 @@ import { DataImportView } from './components/DataImportView';
 import { ArtistsView } from './components/ArtistsView';
 import { RetroPlayer } from './components/RetroPlayer';
 import { BackgroundGuideModal } from './components/BackgroundGuide';
+import { PlaybackToast } from './components/PlaybackToast';
+import { DesktopModeBanner } from './components/DesktopModeBanner';
 import { SearchView } from './components/SearchView';
 import { ArtistDetailModal } from './components/ArtistDetailModal';
 import { QuickRecoveryModal } from './components/QuickRecoveryModal';
@@ -57,8 +59,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     if (this.state.hasError) {
       return (
         <div className="h-full w-full bg-[#000000] text-white flex flex-col items-center justify-center p-6 text-center select-none font-sans">
-          <div className="w-16 h-16 rounded-2xl bg-[#fa2d48]/15 border border-[#fa2d48]/30 flex items-center justify-center mb-4">
-            <span className="text-2xl text-[#fa2d48]"></span>
+          <div className="w-16 h-16 rounded-2xl bg-accent/15 border border-accent/30 flex items-center justify-center mb-4">
+            <span className="text-2xl text-accent"></span>
           </div>
           <h1 className="text-lg font-bold mb-2">プレイヤーを安全に復旧中</h1>
           <p className="text-xs text-[#8e8e93] max-w-xs mb-6 leading-relaxed">
@@ -66,7 +68,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           </p>
           <button
             onClick={this.handleReset}
-            className="py-3 px-6 rounded-full bg-[#fa2d48] text-white text-xs font-semibold hover:bg-[#ff3b56] active:scale-95 transition-all shadow-lg shadow-[#fa2d48]/20"
+            className="py-3 px-6 rounded-full bg-accent text-white text-xs font-semibold hover:bg-accent-hover active:scale-95 transition-all shadow-lg shadow-accent/20"
           >
             プレイヤーを再開する
           </button>
@@ -154,6 +156,8 @@ const AppContent: React.FC = () => {
       {/* Apple Music Full-Screen Now Playing Modal Sheet */}
       <NowPlayingModal />
 
+      <PlaybackToast />
+      <DesktopModeBanner />
       <RetroPlayer />
       <BackgroundGuideModal />
 

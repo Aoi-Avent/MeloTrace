@@ -11,6 +11,8 @@ export const AccountCard: React.FC = () => {
     syncWithCloud,
     cloudConfigured,
     cloudError,
+    cloudMessage,
+    forceCloudSync,
     recordYtHistory,
     setRecordYtHistory,
   } = usePlayer();
@@ -68,14 +70,33 @@ export const AccountCard: React.FC = () => {
               <LogOut className="w-3.5 h-3.5" />ログアウト
             </button>
           </div>
+          {cloudMessage && <p className="text-[11px] text-[#30d158] mt-2 leading-relaxed">{cloudMessage}</p>}
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => forceCloudSync('push')}
+              disabled={isCloudSyncing}
+              className="flex-1 py-2 rounded-xl bg-white/10 text-white text-[11px] font-semibold disabled:opacity-50"
+            >
+              この端末の内容でクラウドを上書き
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm('クラウドの内容をこの端末に反映します（スキ・Ban・プレイリスト・設定が置き換わります）。よろしいですか？')) forceCloudSync('pull');
+              }}
+              disabled={isCloudSyncing}
+              className="flex-1 py-2 rounded-xl bg-white/10 text-white text-[11px] font-semibold disabled:opacity-50"
+            >
+              クラウドの内容をこの端末へ
+            </button>
+          </div>
           <p className="text-[10px] text-[#8e8e93] mt-2 leading-relaxed">
-            変更は自動で保存されます。ログイン状態は約1時間で切れるため、期間が空いたら「今すぐ同期」を押してください。
+            同期されるもの：曲ライブラリ（歌詞を除く）、スキ、Ban、プレイリスト、テーマや表示設定。ログインは約1時間で切れるため、アプリを開き直したら「今すぐ同期」を押してください。
           </p>
         </>
       )}
 
       {cloudError && (
-        <p className="text-[11px] text-[#fa2d48] mt-2 flex gap-1.5 leading-relaxed">
+        <p className="text-[11px] text-accent mt-2 flex gap-1.5 leading-relaxed">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           {cloudError}
         </p>
@@ -85,7 +106,7 @@ export const AccountCard: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-bold text-white flex items-center gap-1.5">
-              <Youtube className="w-3.5 h-3.5 text-[#fa2d48]" />YouTubeの視聴履歴にも残す
+              <Youtube className="w-3.5 h-3.5 text-accent" />YouTubeの視聴履歴にも残す
             </p>
             <p className="text-[10px] text-[#8e8e93] leading-relaxed mt-1">
               オンにすると、同じブラウザでYouTubeにログイン中なら、このアプリで再生した曲がYouTubeの履歴に記録される場合があります。

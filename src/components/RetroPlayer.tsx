@@ -256,7 +256,7 @@ export const RetroPlayer: React.FC = () => {
   );
 
   return (
-    <div className="fixed inset-0 z-[80] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 select-none touch-none">
+    <div className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4 select-none touch-none">
       <button
         onClick={() => setIsRetroPlayerOpen(false)}
         className="absolute top-[max(env(safe-area-inset-top,0px),12px)] right-4 p-2 rounded-full bg-white/10 text-white"

@@ -41,12 +41,12 @@ export const MiniPlayer: React.FC = () => {
                 loading="lazy"
               />
             ) : (
-              <Disc3 className="w-6 h-6 text-[#fa2d48] animate-spin" />
+              <Disc3 className="w-6 h-6 text-accent animate-spin" />
             )}
 
             {/* Micro equalizing bar indicator when playing real music */}
             {isPlaying && !isAdPlaying && (
-              <div className="absolute inset-0 bg-black/30 backdrop-blur-[0.5px] flex items-end justify-center gap-[2px] pb-1.5">
+              <div className="absolute inset-0 bg-black/30 flex items-end justify-center gap-[2px] pb-1.5">
                 <span className="w-[2.5px] bg-white rounded-full apple-eq-bar-1" />
                 <span className="w-[2.5px] bg-white rounded-full apple-eq-bar-2" />
                 <span className="w-[2.5px] bg-white rounded-full apple-eq-bar-3" />
@@ -72,7 +72,7 @@ export const MiniPlayer: React.FC = () => {
                 e.stopPropagation();
                 setSelectedArtistForDetail(currentTrack.artist);
               }}
-              className="text-[11px] text-[#8e8e93] hover:text-[#fa2d48] hover:underline truncate mt-0.5 cursor-pointer"
+              className="text-[11px] text-[#8e8e93] hover:text-accent hover:underline truncate mt-0.5 cursor-pointer"
               title="アーティストの曲一覧を開く"
             >
               {isAdPlaying ? '広告終了までお待ちください（まもなく始まります）' : currentTrack.artist}
@@ -87,7 +87,7 @@ export const MiniPlayer: React.FC = () => {
               aria-label={isPlaying ? '一時停止' : '再生'}
             >
               {(isBuffering || isAdPlaying) && isPlaying ? (
-                <Loader2 className="w-4 h-4 animate-spin text-[#fa2d48]" />
+                <Loader2 className="w-4 h-4 animate-spin text-accent" />
               ) : isPlaying ? (
                 <Pause className="w-5 h-5 fill-current" />
               ) : (
@@ -108,7 +108,7 @@ export const MiniPlayer: React.FC = () => {
         {/* Subtle bottom progress bar */}
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/10">
           <div
-            className="h-full bg-[#fa2d48] transition-all duration-300"
+            className="h-full bg-accent transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>

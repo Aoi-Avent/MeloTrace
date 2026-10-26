@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>MeloTrace - YouTube音楽履歴プレイヤー</title>
     <meta name="description" content="視聴履歴を有効活用して自分専用の音楽ライブラリと分析を楽しむ、スマホ最適化ミュージックプレイヤー" />
-    <meta name="theme-color" content="#090a0f" />
+    <meta name="theme-color" content="#000000" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="MeloTrace" />
@@ -16,6 +16,17 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+      (function(){
+        try {
+          var T = {blue:['#0a84ff','#409cff'],teal:['#30b0c7','#5ac8d8'],green:['#30d158','#5ee07a'],purple:['#af52de','#c27ae8'],pink:['#ff2d95','#ff5cae'],red:['#fa2d48','#ff3b56'],orange:['#ff9f0a','#ffb340']};
+          var id = localStorage.getItem('melotrace_theme_v1') || 'blue';
+          var c = T[id] || T.blue;
+          document.documentElement.style.setProperty('--accent', c[0]);
+          document.documentElement.style.setProperty('--accent-hover', c[1]);
+        } catch (e) {}
+      })();
+    </script>
     <script>
       (function(){
         // Ensure trailing slash for GitHub Pages project sites so relative assets resolve properly

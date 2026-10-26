@@ -1,11 +1,18 @@
 @import "tailwindcss";
 
+@theme inline {
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+}
+
 @layer base {
   :root {
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --apple-red: #fa2d48;
-    --apple-red-hover: #ff3b56;
+    --accent: #0a84ff;
+    --accent-hover: #409cff;
+    --apple-red: var(--accent);
+    --apple-red-hover: var(--accent-hover);
   }
 
   html, body {
@@ -52,15 +59,15 @@
 /* Apple Music Glass & Blur Effects */
 .apple-glass {
   background: rgba(28, 28, 30, 0.78);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 0.5px solid rgba(255, 255, 255, 0.12);
 }
 
 .apple-nav-glass {
   background: rgba(20, 20, 22, 0.86);
-  backdrop-filter: blur(30px) saturate(190%);
-  -webkit-backdrop-filter: blur(30px) saturate(190%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border-top: 0.5px solid rgba(255, 255, 255, 0.14);
 }
 
@@ -72,8 +79,8 @@
 
 .apple-pill-miniplayer {
   background: rgba(36, 36, 38, 0.88);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 0.5px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
 }

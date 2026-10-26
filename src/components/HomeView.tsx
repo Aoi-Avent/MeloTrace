@@ -103,7 +103,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
       {/* Apple Music Header Strip */}
       <div className="flex items-center justify-between pt-2 pb-1 border-b border-white/5 mb-3">
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-[#fa2d48]" />
+          <span className="w-2 h-2 rounded-full bg-accent" />
           <span className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wider">
             {isDemoMode ? 'サンプル体験中' : 'マイライブラリ'}
           </span>
@@ -112,7 +112,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
         {isDemoMode ? (
           <button
             onClick={() => setActiveTab('import')}
-            className="flex items-center gap-1 text-[11px] font-medium text-[#fa2d48] hover:underline"
+            className="flex items-center gap-1 text-[11px] font-medium text-accent hover:underline"
           >
             <span>自分の履歴を取り込む</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -142,7 +142,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
       {/* Empty / Zero-state banner */}
       {tracks.length === 0 && (
         <div className="mb-6 p-6 rounded-2xl apple-card text-center border border-white/10">
-          <Sparkles className="w-10 h-10 text-[#fa2d48] mx-auto mb-3" />
+          <Sparkles className="w-10 h-10 text-accent mx-auto mb-3" />
           <h2 className="text-base font-bold text-white mb-1">音楽データがありません</h2>
           <p className="text-xs text-[#8e8e93] mb-4 leading-relaxed">
             サンプルデータを読み込むか、Google Takeoutの履歴ファイルを取り込んで始めましょう。
@@ -150,7 +150,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
           <div className="flex flex-col gap-2">
             <button
               onClick={loadDemoData}
-              className="w-full py-3 px-4 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white font-semibold text-xs active:scale-98 transition-all"
+              className="w-full py-3 px-4 rounded-xl bg-accent hover:bg-accent-hover text-white font-semibold text-xs active:scale-98 transition-all"
             >
               体験データをロードする
             </button>
@@ -168,7 +168,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
       {tracks.length > 0 && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#2c151b] via-[#1c1c1e] to-[#121214] border border-white/10 p-5 mb-7 shadow-xl">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-[#fa2d48] uppercase tracking-wider flex items-center gap-1">
+            <span className="text-[11px] font-bold text-accent uppercase tracking-wider flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5" />
               <span>パーソナルステーション</span>
             </span>
@@ -189,7 +189,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
 
             <button
               onClick={handleBigPlay}
-              className="w-14 h-14 rounded-full bg-[#fa2d48] hover:bg-[#ff3b56] text-white flex items-center justify-center shrink-0 shadow-[0_4px_20px_rgba(250,45,72,0.45)] active:scale-95 transition-all"
+              className="w-14 h-14 rounded-full bg-accent hover:bg-accent-hover text-white flex items-center justify-center shrink-0 shadow-[0_4px_20px_color-mix(in srgb, var(--accent) 45%, transparent)] active:scale-95 transition-all"
               aria-label="シャッフル再生"
             >
               {isPlaying ? (
@@ -219,7 +219,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
           </div>
           <button
             onClick={() => setIsMixesExpanded(!isMixesExpanded)}
-            className="flex items-center gap-1 text-xs text-[#fa2d48] font-semibold hover:underline"
+            className="flex items-center gap-1 text-xs text-accent font-semibold hover:underline"
           >
             <span>{isMixesExpanded ? '折りたたむ' : `全${QUICK_MIXES.length}種類`}</span>
             {isMixesExpanded ? (
@@ -248,7 +248,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
                     ? 'ジャンル'
                     : '履歴'}
                 </span>
-                <h4 className="text-xs font-bold text-white group-hover:text-[#fa2d48] transition-colors leading-snug">
+                <h4 className="text-xs font-bold text-white group-hover:text-accent transition-colors leading-snug">
                   {mix.title}
                 </h4>
               </div>
@@ -286,7 +286,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
             </h3>
             <button
               onClick={() => setActiveTab('library')}
-              className="text-xs text-[#fa2d48] font-semibold flex items-center gap-0.5 hover:underline"
+              className="text-xs text-accent font-semibold flex items-center gap-0.5 hover:underline"
             >
               <span>すべて見る</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -311,9 +311,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
                   {currentTrack?.id === track.id && isPlaying && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                       <div className="flex items-end gap-[3px] h-4">
-                        <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-1" />
-                        <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-2" />
-                        <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-3" />
+                        <span className="w-1 bg-accent rounded-full apple-eq-bar-1" />
+                        <span className="w-1 bg-accent rounded-full apple-eq-bar-2" />
+                        <span className="w-1 bg-accent rounded-full apple-eq-bar-3" />
                       </div>
                     </div>
                   )}
@@ -339,7 +339,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
             </h3>
             <button
               onClick={() => setActiveTab('analytics')}
-              className="text-xs text-[#fa2d48] font-semibold flex items-center gap-0.5 hover:underline"
+              className="text-xs text-accent font-semibold flex items-center gap-0.5 hover:underline"
             >
               <span>カルテ</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -379,12 +379,12 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
                     e.stopPropagation();
                     toggleFavorite(track.id);
                   }}
-                  className="p-2 text-[#8e8e93] hover:text-[#fa2d48] transition-colors"
+                  className="p-2 text-[#8e8e93] hover:text-accent transition-colors"
                   aria-label="お気に入り"
                 >
                   <Heart
                     className={`w-4 h-4 ${
-                      track.isFavorite ? 'text-[#fa2d48] fill-[#fa2d48]' : ''
+                      track.isFavorite ? 'text-accent fill-accent' : ''
                     }`}
                   />
                 </button>
@@ -409,7 +409,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
                 title="このアーティストの曲一覧を開く"
               >
                 <span className="font-medium">{artist.name}</span>
-                <span className="text-[10px] text-[#fa2d48] font-bold">
+                <span className="text-[10px] text-accent font-bold">
                   {artist.count}回
                 </span>
               </button>

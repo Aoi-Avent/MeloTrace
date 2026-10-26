@@ -10,19 +10,36 @@ export const GOOGLE_CLIENT_ID: string = (import.meta as any).env?.VITE_GOOGLE_CL
 const SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.appdata';
 const SYNC_FILE_NAME = 'melotrace-sync.json';
 
+export interface CompactTrack {
+  id: string;
+  title: string;
+  artist: string;
+  channelId?: string;
+  genre: string;
+  playCount: number;
+  duration?: number | null;
+  lastPlayed: string;
+  firstPlayed?: string;
+}
+
+export interface SyncSettings {
+  strictnessMode?: 'strict' | 'standard' | 'all';
+  lyricsDisplayMode?: 'dynamic' | 'static';
+  artworkAspectRatio?: 'auto' | '1:1' | '16:9';
+  retroPlayerSkin?: 'ipod' | 'walkman';
+  themeId?: string;
+}
+
 export interface SyncPayload {
   version: 1;
-  updatedAt: string; // ISO8601
+  updatedAt: string; // ISO8601（この内容の版を表す）
   favoriteIds: string[];
   bannedArtists: string[];
   bannedTracks: string[];
   playlists: Playlist[];
-  settings: {
-    strictnessMode?: 'strict' | 'standard' | 'all';
-    lyricsDisplayMode?: 'dynamic' | 'static';
-    artworkAspectRatio?: 'auto' | '1:1' | '16:9';
-    retroPlayerSkin?: 'ipod' | 'walkman';
-  };
+  settings: SyncSettings;
+  /** ライブラリ（歌詞を除く軽量データ）。古い版には無い */
+  tracks?: CompactTrack[];
 }
 
 export interface GoogleProfile {

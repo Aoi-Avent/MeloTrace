@@ -84,7 +84,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-2xl flex flex-col justify-end animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[70] bg-black/85 flex flex-col justify-end animate-in fade-in duration-200">
       {/* Background backdrop blur */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {representativeThumbnail && (
@@ -127,7 +127,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
               )}
             </div>
 
-            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#fa2d48]/15 text-[#fa2d48] text-[11px] font-semibold mb-1 border border-[#fa2d48]/20">
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-accent/15 text-accent text-[11px] font-semibold mb-1 border border-accent/20">
               <Sparkles className="w-3 h-3" />
               <span>ライブラリ収録アーティスト</span>
             </div>
@@ -144,7 +144,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
             <div className="flex items-center gap-3 w-full max-w-xs mt-4">
               <button
                 onClick={() => handlePlayAll(false)}
-                className="flex-1 py-3 px-4 rounded-xl bg-[#fa2d48] hover:bg-[#ff3b56] text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-[#fa2d48]/25 active:scale-95 transition-all"
+                className="flex-1 py-3 px-4 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-accent/25 active:scale-95 transition-all"
               >
                 <Play className="w-4 h-4 fill-white" />
                 <span>すべて再生</span>
@@ -192,14 +192,14 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
                         />
                         {isCurrent && isPlaying && (
                           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                            <span className="w-2 h-2 rounded-full bg-[#fa2d48] animate-ping" />
+                            <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
                           </div>
                         )}
                       </div>
                       <div className="min-w-0">
                         <p
                           className={`text-xs font-semibold truncate ${
-                            isCurrent ? 'text-[#fa2d48]' : 'text-white'
+                            isCurrent ? 'text-accent' : 'text-white'
                           }`}
                         >
                           {track.title}
@@ -215,11 +215,11 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
                         e.stopPropagation();
                         toggleFavorite(track.id);
                       }}
-                      className="p-2 text-[#8e8e93] hover:text-[#fa2d48] transition-colors shrink-0"
+                      className="p-2 text-[#8e8e93] hover:text-accent transition-colors shrink-0"
                     >
                       <Heart
                         className={`w-4 h-4 ${
-                          track.isFavorite ? 'text-[#fa2d48] fill-[#fa2d48]' : 'stroke-[1.8]'
+                          track.isFavorite ? 'text-accent fill-accent' : 'stroke-[1.8]'
                         }`}
                       />
                     </button>
@@ -245,7 +245,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
 
             <button
               onClick={handleBan}
-              className="w-full py-2.5 px-3 rounded-xl bg-[#fa2d48]/10 hover:bg-[#fa2d48]/20 text-[#fa2d48] text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+              className="w-full py-2.5 px-3 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
             >
               <Ban className="w-3.5 h-3.5" />
               <span>このアーティストを非表示 (Ban) にする</span>

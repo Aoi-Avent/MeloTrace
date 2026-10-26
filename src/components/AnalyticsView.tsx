@@ -76,7 +76,7 @@ export const AnalyticsView: React.FC = () => {
   }, [tracks]);
 
   const genreColors: Record<string, string> = {
-    'J-POP': '#fa2d48',
+    'J-POP': '#0a84ff',
     'アニメ・ボカロ': '#af52de',
     'シティポップ': '#5ac8fa',
     'ロック・バンド': '#ff9500',
@@ -90,7 +90,7 @@ export const AnalyticsView: React.FC = () => {
       {/* Top Header */}
       <header className="pt-2 pb-1 mb-3">
         <div className="flex items-center gap-1.5 mb-1">
-          <span className="w-2 h-2 rounded-full bg-[#fa2d48]" />
+          <span className="w-2 h-2 rounded-full bg-accent" />
           <span className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wider">
             {isDemoMode ? 'サンプル視聴履歴' : 'あなたの視聴履歴データ'}
           </span>
@@ -113,7 +113,7 @@ export const AnalyticsView: React.FC = () => {
 
         <div className="p-3.5 rounded-2xl apple-card text-center">
           <span className="text-[11px] font-medium text-[#8e8e93] block mb-0.5">累計再生</span>
-          <span className="text-2xl font-black text-[#fa2d48] tabular-nums">{totalPlays}</span>
+          <span className="text-2xl font-black text-accent tabular-nums">{totalPlays}</span>
           <span className="text-[10px] text-[#8e8e93] block">回</span>
         </div>
 
@@ -127,7 +127,7 @@ export const AnalyticsView: React.FC = () => {
       {/* Genre Breakdown */}
       <section className="mb-7 p-4 rounded-2xl apple-card">
         <h3 className="text-xs font-bold text-[#8e8e93] uppercase tracking-wider mb-3 flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-[#fa2d48]" />
+          <Sparkles className="w-3.5 h-3.5 text-accent" />
           <span>ジャンル構成比率</span>
         </h3>
 
@@ -207,7 +207,7 @@ export const AnalyticsView: React.FC = () => {
               </div>
 
               <div className="text-right shrink-0">
-                <span className="text-xs font-bold text-[#fa2d48] tabular-nums">{track.playCount}</span>
+                <span className="text-xs font-bold text-accent tabular-nums">{track.playCount}</span>
                 <span className="text-[10px] text-[#8e8e93] block">回</span>
               </div>
             </div>
@@ -239,7 +239,7 @@ export const AnalyticsView: React.FC = () => {
                 </div>
                 <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-[#fa2d48] to-[#bf5af2] rounded-full"
+                    className="h-full bg-gradient-to-r from-accent to-[#bf5af2] rounded-full"
                     style={{ width: `${Math.min(100, artistShare * 2)}%` }}
                   />
                 </div>

@@ -113,7 +113,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="曲名、アーティスト、ボカロP、ジャンル"
-          className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-[#1c1c1e] text-white text-sm placeholder-[#8e8e93] border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#fa2d48]/50 transition-all"
+          className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-[#1c1c1e] text-white text-sm placeholder-[#8e8e93] border border-white/10 focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
         />
         {query && (
           <button
@@ -139,7 +139,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
               }}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all active:scale-95 ${
                 isSelected
-                  ? 'bg-[#fa2d48] text-white shadow-md shadow-[#fa2d48]/30'
+                  ? 'bg-accent text-white shadow-md shadow-accent/30'
                   : 'bg-[#1c1c1e] text-[#8e8e93] hover:text-white border border-white/5'
               }`}
             >
@@ -156,12 +156,12 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
           {topMatchingArtist && (
             <div className="mb-5 p-4 rounded-2xl apple-card border border-white/10 relative overflow-hidden">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-bold text-[#fa2d48] uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-accent uppercase tracking-wider">
                   トップアーティスト
                 </span>
                 <button
                   onClick={() => onSelectArtist(topMatchingArtist.artist)}
-                  className="text-xs text-[#fa2d48] font-semibold flex items-center gap-1 hover:underline"
+                  className="text-xs text-accent font-semibold flex items-center gap-1 hover:underline"
                 >
                   <span>曲一覧・詳細</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -195,7 +195,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
                     );
                     if (filtered[0]) playTrack(filtered[0], filtered);
                   }}
-                  className="w-10 h-10 rounded-full bg-[#fa2d48] flex items-center justify-center text-white shadow-lg active:scale-95 shrink-0"
+                  className="w-10 h-10 rounded-full bg-accent flex items-center justify-center text-white shadow-lg active:scale-95 shrink-0"
                 >
                   <Play className="w-4 h-4 fill-white ml-0.5" />
                 </button>
@@ -238,14 +238,14 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
                           />
                           {isCurrent && isPlaying && (
                             <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                              <span className="w-2.5 h-2.5 rounded-full bg-[#fa2d48] animate-ping" />
+                              <span className="w-2.5 h-2.5 rounded-full bg-accent animate-ping" />
                             </div>
                           )}
                         </div>
                         <div className="min-w-0">
                           <p
                             className={`text-xs font-semibold truncate ${
-                              isCurrent ? 'text-[#fa2d48]' : 'text-white'
+                              isCurrent ? 'text-accent' : 'text-white'
                             }`}
                           >
                             {track.title}
@@ -256,7 +256,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
                                 e.stopPropagation();
                                 onSelectArtist(track.artist);
                               }}
-                              className="text-[11px] text-[#8e8e93] hover:text-[#fa2d48] truncate hover:underline"
+                              className="text-[11px] text-[#8e8e93] hover:text-accent truncate hover:underline"
                             >
                               {track.artist}
                             </span>
@@ -273,11 +273,11 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
                           e.stopPropagation();
                           toggleFavorite(track.id);
                         }}
-                        className="p-2 text-[#8e8e93] hover:text-[#fa2d48] transition-colors shrink-0"
+                        className="p-2 text-[#8e8e93] hover:text-accent transition-colors shrink-0"
                       >
                         <Heart
                           className={`w-4 h-4 ${
-                            track.isFavorite ? 'text-[#fa2d48] fill-[#fa2d48]' : 'stroke-[1.8]'
+                            track.isFavorite ? 'text-accent fill-accent' : 'stroke-[1.8]'
                           }`}
                         />
                       </button>

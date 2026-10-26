@@ -11,9 +11,10 @@ import { DEMO_TRACKS, DEMO_PLAYLISTS } from '../data/demoData';
 import { extractYouTubeId, extractSmartTrackMeta, isLikelyMusic, isBgmOrClassicalTrack } from '../utils/parser';
 import { getLyricsForTrack } from '../utils/lyricsService';
 import { audioKeepAlive } from '../utils/audioKeepAlive';
+import { applyTheme, getSavedThemeId, THEME_STORAGE_KEY } from '../utils/theme';
+import { contentSignature, hashString, decideSync, SyncBase, SyncMode, ApplyState } from '../utils/syncMerge';
 import {
   GOOGLE_CLIENT_ID,
-  SyncPayload,
   requestAccessToken,
   fetchProfile,
   revokeToken,
@@ -117,6 +118,16 @@ interface PlayerContextType {
   // YouTube側の視聴履歴にも記録させる（埋め込みをyoutube.com経由にする。反映には再読み込みが必要）
   recordYtHistory: boolean;
   setRecordYtHistory: (v: boolean) => void;
+  cloudMessage: string | null;
+  forceCloudSync: (mode: 'push' | 'pull') => Promise<void>;
+  // Playback robustness
+  playbackHint: string | null;
+  dismissPlaybackHint: () => void;
+  keepAliveEnabled: boolean;
+  setKeepAliveEnabled: (v: boolean) => void;
+  // Theme
+  themeId: string;
+  setThemeId: (id: string) => void;
 }
 
 const STORAGE_KEY_TRACKS = 'melotrace_tracks_v5';
@@ -129,6 +140,7 @@ const STORAGE_KEY_LAST_TRACK_ID = 'melotrace_last_track_id_v5';
 const STORAGE_KEY_LAST_QUEUE_IDS = 'melotrace_last_queue_ids_v5';
 const YT_HISTORY_KEY = 'melotrace_record_yt_history_v1';
 const LOCAL_MODIFIED_KEY = 'melotrace_local_modified_v1';
+const SYNC_BASE_KEY = 'melotrace_sync_base_v1';
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
 
@@ -296,6 +308,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
   const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
+  const [cloudMessage, setCloudMessage] = useState<string | null>(null);
   const [recordYtHistory, setRecordYtHistoryState] = useState<boolean>(() => {
     try {
       return localStorage.getItem(YT_HISTORY_KEY) === 'true';
@@ -315,6 +328,32 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const playbackRateRef = useRef<number>(playbackRate);
   const [isAdPlaying, setIsAdPlaying] = useState<boolean>(false);
   const isAdPlayingRef = useRef<boolean>(false);
+  const [playbackHint, setPlaybackHint] = useState<string | null>(null);
+  const [keepAliveEnabled, setKeepAliveEnabledState] = useState<boolean>(() => audioKeepAlive.isEnabled());
+  const [themeId, setThemeIdState] = useState<string>(() => getSavedThemeId());
+  const wantPlayingRef = useRef<boolean>(false); // 「再生したい」意思（ユーザーが止めない限り true）
+  const loadSeqRef = useRef<number>(0);
+  const loadedAtRef = useRef<number>(0);
+  const adStrikeRef = useRef<number>(0);
+  const adSinceRef = useRef<number>(0);
+  const adGiveUpRef = useRef<boolean>(false);
+  const watchdogTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const isPlayingRef = useRef<boolean>(false);
+  const tickCountRef = useRef<number>(0);
+
+  useEffect(() => {
+    applyTheme(themeId);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, themeId);
+    } catch (e) {}
+  }, [themeId]);
+
+  const setThemeId = useCallback((id: string) => setThemeIdState(id), []);
+  const setKeepAliveEnabled = useCallback((v: boolean) => {
+    audioKeepAlive.setEnabled(v);
+    setKeepAliveEnabledState(v);
+  }, []);
+  const dismissPlaybackHint = useCallback(() => setPlaybackHint(null), []);
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
@@ -323,6 +362,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     playbackRateRef.current = playbackRate;
   }, [playbackRate]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   const isHydratedRef = useRef<boolean>(false);
 
@@ -347,14 +390,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  // Sync full library to IndexedDB (non-blocking) and keep lightweight fast-boot cache in localStorage
+  // 小さな設定は即時にlocalStorageへ。ライブラリ全体のIndexedDB保存は重いのでまとめて(間引いて)行う
   useEffect(() => {
-    if (!isHydratedRef.current) return; // PREVENT WIPING DATABASE ON INITIAL RENDER!
-    saveTracksToDB(tracks);
+    if (!isHydratedRef.current) return;
     try {
-      // Cap localStorage cache to top 300 tracks so localStorage never exceeds 5MB quota
-      const cacheSubset = tracks.slice(0, 300);
-      localStorage.setItem(STORAGE_KEY_TRACKS, JSON.stringify(cacheSubset));
       localStorage.setItem(STORAGE_KEY_IS_DEMO, isDemoMode.toString());
       localStorage.setItem(STORAGE_KEY_BANNED_ARTISTS, JSON.stringify(bannedArtists));
       localStorage.setItem(STORAGE_KEY_BANNED_TRACKS, JSON.stringify(bannedTracks));
@@ -362,9 +401,51 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (e) {
       console.warn('LocalStorage quota guarded:', e);
     }
-  }, [tracks, isDemoMode, bannedArtists, bannedTracks, strictnessMode]);
+  }, [isDemoMode, bannedArtists, bannedTracks, strictnessMode]);
+
+  const persistTracksRef = useRef(tracks);
+  persistTracksRef.current = tracks;
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushTracks = useCallback(() => {
+    const list = persistTracksRef.current;
+    saveTracksToDB(list);
+    try {
+      // 起動を速くするための小さなキャッシュ（歌詞は含めない）
+      const cacheSubset = list.slice(0, 300).map((t) => ({ ...t, lyrics: undefined }));
+      localStorage.setItem(STORAGE_KEY_TRACKS, JSON.stringify(cacheSubset));
+    } catch (e) {
+      console.warn('LocalStorage quota guarded:', e);
+    }
+  }, []);
 
   useEffect(() => {
+    if (!isHydratedRef.current) return; // PREVENT WIPING DATABASE ON INITIAL RENDER!
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      const ric = (window as any).requestIdleCallback;
+      if (ric) ric(flushTracks, { timeout: 5000 });
+      else flushTracks();
+    }, 3000);
+    return () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    };
+  }, [tracks, flushTracks]);
+
+  // 画面を閉じる/バックグラウンドに行くタイミングで未保存分を書き出す
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden' && isHydratedRef.current) flushTracks();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onHide);
+    };
+  }, [flushTracks]);
+
+  useEffect(() => {
+    if (!isHydratedRef.current) return;
     savePlaylistsToDB(playlists);
     try {
       localStorage.setItem(STORAGE_KEY_PLAYLISTS, JSON.stringify(playlists));
@@ -410,28 +491,32 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let isMounted = true;
     setIsLoadingLyrics(true);
 
-    getLyricsForTrack(
-      currentTrack.artist,
-      currentTrack.title,
-      currentTrack.duration || 240,
-      currentTrack.id
-    )
-      .then((lrc) => {
-        if (!isMounted) return;
-        setIsLoadingLyrics(false);
-        if (lrc) {
-          setCurrentTrack((prev) => (prev && prev.id === currentTrack.id ? { ...prev, lyrics: lrc } : prev));
-          setTracks((prev) =>
-            prev.map((t) => (t.id === currentTrack.id ? { ...t, lyrics: lrc } : t))
-          );
-        }
-      })
-      .catch(() => {
-        if (isMounted) setIsLoadingLyrics(false);
-      });
+    // 再生開始を最優先するため、歌詞の取得は少し遅らせる
+    const lyricsTimer = setTimeout(() => {
+      getLyricsForTrack(
+        currentTrack.artist,
+        currentTrack.title,
+        currentTrack.duration || 240,
+        currentTrack.id
+      )
+        .then((lrc) => {
+          if (!isMounted) return;
+          setIsLoadingLyrics(false);
+          if (lrc) {
+            setCurrentTrack((prev) => (prev && prev.id === currentTrack.id ? { ...prev, lyrics: lrc } : prev));
+            setTracks((prev) =>
+              prev.map((t) => (t.id === currentTrack.id ? { ...t, lyrics: lrc } : t))
+            );
+          }
+        })
+        .catch(() => {
+          if (isMounted) setIsLoadingLyrics(false);
+        });
+    }, 1500);
 
     return () => {
       isMounted = false;
+      clearTimeout(lyricsTimer);
     };
   }, [currentTrack?.id]);
 
@@ -462,7 +547,173 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     handleTrackEndedRef.current = handleTrackEnded;
   }, [handleTrackEnded]);
 
-  // Initialize YouTube IFrame Player with ad-suppression parameters
+  // ---------- Playback robustness helpers ----------
+  const clearWatchdog = useCallback(() => {
+    watchdogTimersRef.current.forEach((t) => clearTimeout(t));
+    watchdogTimersRef.current = [];
+  }, []);
+
+  /**
+   * 広告判定。読み込み直後は getVideoData() が前の動画IDのままのことがあり、
+   * 以前は「広告」と誤判定 → ミュート・時間停止（音が出ない／止まったまま）の原因になっていた。
+   * そのため (1)読み込み後1.2秒は判定しない (2)2回連続で不一致のときだけ広告扱い (3)45秒続いたら誤判定とみなして解除する。
+   */
+  const evaluateAd = useCallback((): boolean => {
+    const p = ytPlayerRef.current;
+    const cur = currentTrackRef.current?.id;
+    if (!p || !cur || adGiveUpRef.current) return false;
+    let vid: string | undefined;
+    try {
+      vid = p.getVideoData?.()?.video_id;
+    } catch (e) {}
+    if (!vid || vid === cur) {
+      adStrikeRef.current = 0;
+      adSinceRef.current = 0;
+      return false;
+    }
+    if (Date.now() - loadedAtRef.current < 1200) return false;
+    adStrikeRef.current += 1;
+    if (adStrikeRef.current < 2) return false;
+    if (!adSinceRef.current) adSinceRef.current = Date.now();
+    if (Date.now() - adSinceRef.current > 45000) {
+      adGiveUpRef.current = true; // 広告ではなく別IDで再生されている動画とみなす
+      return false;
+    }
+    return true;
+  }, []);
+
+  const applyAdState = useCallback((isAd: boolean) => {
+    const p = ytPlayerRef.current;
+    if (!p) return;
+    try {
+      if (isAd) {
+        if (!isAdPlayingRef.current) {
+          isAdPlayingRef.current = true;
+          setIsAdPlaying(true);
+          setIsBuffering(true);
+          setCurrentTime(0);
+        }
+        p.mute?.();
+        p.setPlaybackRate?.(2);
+      } else {
+        if (isAdPlayingRef.current) {
+          isAdPlayingRef.current = false;
+          setIsAdPlaying(false);
+          setIsBuffering(false);
+          p.setPlaybackRate?.(playbackRateRef.current);
+        }
+        // 広告中でなければ常に音が出る状態にする（ミュートのまま残る不具合の対策）
+        if (p.isMuted?.()) {
+          p.unMute?.();
+          p.setVolume?.(100);
+        }
+      }
+    } catch (e) {}
+  }, []);
+
+  /** 再生開始の見張り: 一定時間たっても再生が始まらなければ段階的に再試行し、最終的にはユーザーに▶操作を促す */
+  const startWatchdog = useCallback(
+    (id: string) => {
+      clearWatchdog();
+      const mySeq = loadSeqRef.current;
+      const steps: Array<[number, 'kick' | 'reload' | 'hard' | 'giveup']> = [
+        [2500, 'kick'],
+        [6000, 'reload'],
+        [10500, 'hard'],
+        [16000, 'giveup'],
+      ];
+      steps.forEach(([ms, action]) => {
+        watchdogTimersRef.current.push(
+          setTimeout(() => {
+            if (mySeq !== loadSeqRef.current || !wantPlayingRef.current) return;
+            const p = ytPlayerRef.current;
+            if (!p) return;
+            if (isAdPlayingRef.current) return; // 広告再生中は待つ
+            let st = -2;
+            try {
+              st = p.getPlayerState?.();
+            } catch (e) {}
+            if (st === 1) return; // 再生中
+            try {
+              if (action === 'kick') {
+                p.unMute?.();
+                p.playVideo?.();
+              } else if (action === 'reload') {
+                if (st === 3) return; // 通信中は待つ
+                p.loadVideoById({ videoId: id, startSeconds: 0 });
+                p.playVideo?.();
+              } else if (action === 'hard') {
+                p.stopVideo?.();
+                p.loadVideoById({ videoId: id, startSeconds: 0 });
+                setTimeout(() => {
+                  try {
+                    ytPlayerRef.current?.playVideo?.();
+                  } catch (e) {}
+                }, 300);
+              } else {
+                setIsPlaying(false);
+                setIsBuffering(false);
+                setPlaybackHint('再生を開始できませんでした。▶ボタンをもう一度押してください。');
+              }
+            } catch (e) {}
+          }, ms)
+        );
+      });
+    },
+    [clearWatchdog]
+  );
+
+  const resumePlayback = useCallback(() => {
+    wantPlayingRef.current = true;
+    setPlaybackHint(null);
+    const p = ytPlayerRef.current;
+    try {
+      p?.unMute?.();
+      p?.setVolume?.(100);
+      p?.playVideo?.();
+    } catch (e) {}
+    setIsPlaying(true);
+    audioKeepAlive.onPlay(currentTrackRef.current);
+    if (currentTrackRef.current) startWatchdog(currentTrackRef.current.id);
+  }, [startWatchdog]);
+
+  const pausePlayback = useCallback(() => {
+    wantPlayingRef.current = false;
+    clearWatchdog();
+    try {
+      ytPlayerRef.current?.pauseVideo?.();
+    } catch (e) {}
+    setIsPlaying(false);
+    setIsBuffering(false);
+    audioKeepAlive.onPause();
+  }, [clearWatchdog]);
+
+  // 画面復帰時にUI状態を実際のプレイヤー状態へ合わせる（止まっているのに再生中表示、を防ぐ）
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const p = ytPlayerRef.current;
+      if (!p?.getPlayerState) return;
+      try {
+        const st = p.getPlayerState();
+        const playingNow = st === 1 || st === 3;
+        setIsPlaying(playingNow);
+        if (!playingNow && wantPlayingRef.current && Date.now() - loadedAtRef.current < 20000) p.playVideo?.();
+        if (!isAdPlayingRef.current && p.isMuted?.()) {
+          p.unMute?.();
+          p.setVolume?.(100);
+        }
+      } catch (e) {}
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onVisible);
+    };
+  }, []);
+
+  // Initialize YouTube IFrame Player
   useEffect(() => {
     const initPlayer = () => {
       if (!window.YT || !window.YT.Player) {
@@ -510,7 +761,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 const p = pendingTrackRef.current;
                 pendingTrackRef.current = null;
                 try {
-                  ytPlayerRef.current.loadVideoById(p.id, 0);
+                  ytPlayerRef.current.loadVideoById({ videoId: p.id, startSeconds: 0 });
                   ytPlayerRef.current.playVideo?.();
                 } catch (e) {
                   console.warn('onReady loadVideoById failed', e);
@@ -519,76 +770,56 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             },
             onStateChange: (event: any) => {
               // 1: PLAYING, 2: PAUSED, 0: ENDED, 3: BUFFERING, -1: UNSTARTED, 5: CUED
+              const p = ytPlayerRef.current;
               if (event.data === 1) {
                 setIsPlaying(true);
                 consecutiveErrorsRef.current = 0;
-
-                // Inspect current video data to distinguish ad vs actual track
-                const vData = ytPlayerRef.current?.getVideoData?.();
-                const isAd = Boolean(
-                  vData?.video_id &&
-                  currentTrackRef.current?.id &&
-                  vData.video_id !== currentTrackRef.current.id
-                );
-                setIsAdPlaying(isAd);
-                isAdPlayingRef.current = isAd;
-
-                if (isAd) {
-                  // Mute the ad and 2x fast-forward through it!
-                  try {
-                    ytPlayerRef.current?.mute?.();
-                    ytPlayerRef.current?.setPlaybackRate?.(2);
-                  } catch (e) {}
-                  setCurrentTime(0);
-                  setIsBuffering(true); // Treat ad as loading/buffering state
-                } else {
-                  // Unmute and restore user-chosen playback rate
-                  try {
-                    ytPlayerRef.current?.unMute?.();
-                    ytPlayerRef.current?.setPlaybackRate?.(playbackRateRef.current);
-                  } catch (e) {}
+                const isAd = evaluateAd();
+                applyAdState(isAd);
+                if (!isAd) {
+                  clearWatchdog();
+                  setPlaybackHint(null);
                   setIsBuffering(false);
-                  const d = ytPlayerRef.current?.getDuration?.();
-                  if (d && !isNaN(d) && d > 0) setDuration(d);
+                  try {
+                    const d = p?.getDuration?.();
+                    if (d && !isNaN(d) && d > 0) setDuration(d);
+                  } catch (e) {}
+                  audioKeepAlive.startLoop();
                 }
               } else if (event.data === 2) {
+                // 読み込み直後に勝手に止められた場合（自動再生ブロック等）は、UIは再生中のまま再開を試みる
+                if (wantPlayingRef.current && Date.now() - loadedAtRef.current < 8000) {
+                  try {
+                    p?.playVideo?.();
+                  } catch (e) {}
+                  return;
+                }
                 setIsPlaying(false);
                 setIsBuffering(false);
               } else if (event.data === 0) {
                 setIsBuffering(false);
-
-                // Check if the ended video was actually an ad
-                const vData = ytPlayerRef.current?.getVideoData?.();
-                if (
-                  vData?.video_id &&
-                  currentTrackRef.current?.id &&
-                  vData.video_id !== currentTrackRef.current.id
-                ) {
-                  console.log('Ad finished playing; waiting for target music track to begin.');
-                  setIsAdPlaying(false);
+                const vData = p?.getVideoData?.();
+                if (vData?.video_id && currentTrackRef.current?.id && vData.video_id !== currentTrackRef.current.id) {
+                  // 広告が終わっただけ。曲はこれから始まるので次曲へは進めない
                   isAdPlayingRef.current = false;
+                  setIsAdPlaying(false);
                   try {
-                    ytPlayerRef.current?.unMute?.();
+                    p?.unMute?.();
                   } catch (e) {}
-                  return; // CRITICAL: Do NOT advance track when an ad ends!
+                  return;
                 }
-
-                // Check if premature end fired
-                const curTime = ytPlayerRef.current?.getCurrentTime?.() || 0;
-                const dur = ytPlayerRef.current?.getDuration?.() || 0;
+                const curTime = p?.getCurrentTime?.() || 0;
+                const dur = p?.getDuration?.() || 0;
                 if (dur > 30 && curTime < dur - 5) {
-                  console.log('Premature ended event ignored (probable ad-to-video transition):', curTime, dur);
-                  return; // CRITICAL: Do NOT advance track!
+                  return; // 広告→本編の切り替え時の誤ENDEDは無視
                 }
-
-                setIsAdPlaying(false);
                 isAdPlayingRef.current = false;
+                setIsAdPlaying(false);
                 try {
-                  ytPlayerRef.current?.unMute?.();
+                  p?.unMute?.();
                 } catch (e) {}
                 handleTrackEndedRef.current();
               } else if (event.data === 3) {
-                // Buffering is normal stream loading. Never skip track during buffering!
                 setIsBuffering(true);
               } else if (event.data === -1 || event.data === 5) {
                 setIsBuffering(false);
@@ -597,6 +828,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             onError: (err: any) => {
               const errCode = err?.data;
               console.warn('YouTube Player Error Code:', errCode);
+              clearWatchdog();
               setIsBuffering(false);
               setIsAdPlaying(false);
               isAdPlayingRef.current = false;
@@ -608,9 +840,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 if (consecutiveErrorsRef.current < 2) {
                   consecutiveErrorsRef.current += 1;
                   console.warn(`Unplayable video (${errCode}), skipping to next (attempt ${consecutiveErrorsRef.current}/2)`);
-                  setTimeout(() => nextTrackRef.current(), 1000);
+                  setPlaybackHint('再生できない動画だったため、次の曲へ進みました。');
+                  setTimeout(() => nextTrackRef.current(), 600);
                 } else {
                   console.warn('Multiple consecutive playback errors. Pausing playback to prevent skip storm.');
+                  wantPlayingRef.current = false;
+                  setPlaybackHint('再生できない曲が続いたため停止しました。▶で再開できます。');
                   setIsPlaying(false);
                   consecutiveErrorsRef.current = 0;
                 }
@@ -632,69 +867,39 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  // Poll real playback time & monitor ad state from YouTube Player
+  // Poll real playback time & monitor ad state (間隔は用途に応じて可変: 歌詞表示中は細かく、それ以外は粗く = 再描画と電力を節約)
+  const pollMs = isNowPlayingOpen && nowPlayingTab === 'lyrics' ? 250 : 500;
   useEffect(() => {
-    if (isPlaying) {
-      pollIntervalRef.current = setInterval(() => {
-        if (ytPlayerRef.current?.getCurrentTime) {
-          try {
-            // Real-time ad state check
-            const vData = ytPlayerRef.current.getVideoData?.();
-            if (vData?.video_id && currentTrackRef.current?.id) {
-              const isAd = vData.video_id !== currentTrackRef.current.id;
-              setIsAdPlaying(isAd);
-              if (isAd) {
-                isAdPlayingRef.current = true;
-                try {
-                  ytPlayerRef.current.mute?.();
-                  ytPlayerRef.current.setPlaybackRate?.(2);
-                } catch (e) {}
-                setCurrentTime(0);
-                setIsBuffering(true);
-                return; // Freeze time at 0 during ad (treated as track loading)
-              } else if (isAdPlayingRef.current) {
-                // Ad completed, unmuting for song
-                isAdPlayingRef.current = false;
-                try {
-                  ytPlayerRef.current.unMute?.();
-                  ytPlayerRef.current.setPlaybackRate?.(playbackRateRef.current);
-                } catch (e) {}
-                setIsBuffering(false);
-              }
-            }
+    if (!isPlaying) return;
+    const id = setInterval(() => {
+      const p = ytPlayerRef.current;
+      if (!p?.getCurrentTime) return;
+      try {
+        const isAd = evaluateAd();
+        applyAdState(isAd);
+        if (isAd) return; // 広告中は時間を進めない
 
-            const current = ytPlayerRef.current.getCurrentTime();
-            const dur = ytPlayerRef.current.getDuration();
-            if (typeof current === 'number' && !isNaN(current)) {
-              setCurrentTime(current);
-            }
-            if (typeof dur === 'number' && !isNaN(dur) && dur > 0) {
-              setDuration(dur);
-            }
-
-            // Sync CarPlay / Lock Screen progress scrubber
-            if (typeof current === 'number' && typeof dur === 'number' && dur > 0) {
-              audioKeepAlive.updatePositionState(current, dur);
-            }
-
-            // Sync mute status
-            if (ytPlayerRef.current.isMuted) {
-              const muted = Boolean(ytPlayerRef.current.isMuted());
-              setIsPlayerMuted(muted);
-            }
-          } catch (e) {
-            // ignore
-          }
+        const current = p.getCurrentTime();
+        const dur = p.getDuration();
+        if (typeof current === 'number' && !isNaN(current)) {
+          setCurrentTime((prev) => (Math.abs(prev - current) < 0.2 ? prev : current));
         }
-      }, 300);
-    } else {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    }
-
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    };
-  }, [isPlaying]);
+        if (typeof dur === 'number' && !isNaN(dur) && dur > 0) {
+          setDuration((prev) => (prev === dur ? prev : dur));
+        }
+        tickCountRef.current += 1;
+        if (tickCountRef.current % Math.max(1, Math.round(1000 / pollMs)) === 0) {
+          if (typeof current === 'number' && typeof dur === 'number' && dur > 0) {
+            audioKeepAlive.updatePositionState(current, dur);
+          }
+          if (p.isMuted) setIsPlayerMuted(Boolean(p.isMuted()));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }, pollMs);
+    return () => clearInterval(id);
+  }, [isPlaying, pollMs, evaluateAd, applyAdState]);
 
   const playTrack = useCallback(
     (track: MusicTrack, newQueue?: MusicTrack[], shouldOpenModal: boolean = false) => {
@@ -719,18 +924,33 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsNowPlayingOpen(true);
       }
 
-      // Trigger iOS Background Playback keep-alive & MediaSession metadata
+      // MediaSession metadata（無音ループは再生が実際に始まってから開始する）
       audioKeepAlive.onPlay(track);
 
-      if (ytPlayerRef.current?.loadVideoById) {
+      // 再生開始: 見張り(ウォッチドッグ)付きで確実に始める
+      loadSeqRef.current += 1;
+      loadedAtRef.current = Date.now();
+      adStrikeRef.current = 0;
+      adSinceRef.current = 0;
+      adGiveUpRef.current = false;
+      wantPlayingRef.current = true;
+      isAdPlayingRef.current = false;
+      setPlaybackHint(null);
+
+      const p = ytPlayerRef.current;
+      if (p?.loadVideoById) {
         try {
-          ytPlayerRef.current.loadVideoById(track.id, 0);
-          ytPlayerRef.current.playVideo?.();
+          p.unMute?.();
+          p.setVolume?.(100);
+          p.loadVideoById({ videoId: track.id, startSeconds: 0 });
+          p.playVideo?.();
         } catch (e) {
           console.warn('loadVideoById failed', e);
         }
+        startWatchdog(track.id);
       } else {
         pendingTrackRef.current = track;
+        startWatchdog(track.id);
       }
 
       setTracks((prev) =>
@@ -746,7 +966,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         })
       );
     },
-    [queue, musicTracks, bgmTracks, activeTracks]
+    [queue, musicTracks, bgmTracks, activeTracks, startWatchdog]
   );
 
   const playBgmStation = useCallback(() => {
@@ -757,25 +977,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [bgmTracks, playTrack]);
 
   const togglePlay = useCallback(() => {
-    if (ytPlayerRef.current?.getPlayerState) {
-      try {
-        const state = ytPlayerRef.current.getPlayerState();
-        if (state === 1) {
-          ytPlayerRef.current.pauseVideo();
-          setIsPlaying(false);
-          audioKeepAlive.onPause();
-        } else {
-          ytPlayerRef.current.playVideo();
-          setIsPlaying(true);
-          audioKeepAlive.onPlay(currentTrack);
-        }
-      } catch (e) {
-        setIsPlaying((prev) => !prev);
-      }
+    let st = -2;
+    try {
+      st = ytPlayerRef.current?.getPlayerState?.();
+    } catch (e) {}
+    // 画面上は再生中でも、実際は止まっている（▶のまま固まる状態）なら「再生を再試行」として扱う
+    if (isPlayingRef.current && (st === 1 || st === 3)) {
+      pausePlayback();
     } else {
-      setIsPlaying((prev) => !prev);
+      resumePlayback();
     }
-  }, [currentTrack]);
+  }, [pausePlayback, resumePlayback]);
 
   const nextTrack = useCallback(() => {
     if (queue.length === 0) return;
@@ -853,9 +1065,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     if (minutes && minutes > 0) {
       sleepTimerRef.current = setTimeout(() => {
+        wantPlayingRef.current = false;
         if (ytPlayerRef.current?.pauseVideo) {
           ytPlayerRef.current.pauseVideo();
         }
+        audioKeepAlive.onPause();
         setIsPlaying(false);
         setSleepTimerMinutes(null);
       }, minutes * 60 * 1000);
@@ -994,6 +1208,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const clearAllData = useCallback(() => {
+    wantPlayingRef.current = false;
     if (ytPlayerRef.current?.pauseVideo) {
       ytPlayerRef.current.pauseVideo();
     }
@@ -1027,8 +1242,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       unmuteAudio();
       const pos = currentTime || 0;
       if (ytPlayerRef.current?.loadVideoById) {
-        ytPlayerRef.current.loadVideoById(currentTrack.id, pos);
+        loadSeqRef.current += 1;
+        loadedAtRef.current = Date.now();
+        adGiveUpRef.current = false;
+        wantPlayingRef.current = true;
+        ytPlayerRef.current.loadVideoById({ videoId: currentTrack.id, startSeconds: pos });
         ytPlayerRef.current.playVideo?.();
+        startWatchdog(currentTrack.id);
       }
       setIsPlaying(true);
       setIsBuffering(false);
@@ -1036,7 +1256,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (e) {
       console.warn('resyncPlayer failed:', e);
     }
-  }, [currentTrack, currentTime, unmuteAudio]);
+  }, [currentTrack, currentTime, unmuteAudio, startWatchdog]);
 
   // Reset lyrics offset whenever track changes
   useEffect(() => {
@@ -1071,7 +1291,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         id: 'pl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
         name: name.trim() || '新規プレイリスト',
         description: description?.trim(),
-        color: color || '#fa2d48',
+        color: color || '#0a84ff',
         coverTrackId: initialTrackIds[0],
         trackIds: initialTrackIds,
         createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
@@ -1141,82 +1361,113 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // ---- Cloud sync (Google Drive appDataFolder) ----
   const tokenRef = useRef<{ accessToken: string; expiresAt: number } | null>(null);
   const cloudFileIdRef = useRef<string | null>(null);
-  const cloudExtraFavRef = useRef<string[]>([]); // クラウド上にあるが、この端末のライブラリに無い曲のスキ
   const syncingRef = useRef(false);
-  const skipNextSigRef = useRef(false);
 
   const nowIso = () => new Date().toISOString();
+  const nowLabel = () =>
+    new Date().toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
-  const buildPayload = useCallback((): SyncPayload => {
-    const localFav = tracks.filter((t) => t.isFavorite).map((t) => t.id);
-    const known = new Set(tracks.map((t) => t.id));
-    const keep = cloudExtraFavRef.current.filter((id) => !known.has(id));
-    let modified = nowIso();
+  const syncSettings = useMemo(
+    () => ({ strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin, themeId }),
+    [strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin, themeId]
+  );
+
+  const syncSignature = useMemo(
+    () => contentSignature({ tracks, bannedArtists, bannedTracks, playlists, settings: syncSettings }),
+    [tracks, bannedArtists, bannedTracks, playlists, syncSettings]
+  );
+
+  // 同期処理から最新の状態を読むための参照
+  const latestRef = useRef({ tracks, bannedArtists, bannedTracks, playlists, settings: syncSettings, isDemoMode, sig: syncSignature });
+  latestRef.current = { tracks, bannedArtists, bannedTracks, playlists, settings: syncSettings, isDemoMode, sig: syncSignature };
+
+  const readBase = (): SyncBase | null => {
     try {
-      modified = localStorage.getItem(LOCAL_MODIFIED_KEY) || modified;
+      const v = JSON.parse(localStorage.getItem(SYNC_BASE_KEY) || 'null');
+      if (v && typeof v.hash === 'string' && typeof v.rev === 'string') return v;
     } catch (e) {}
-    return {
-      version: 1,
-      updatedAt: modified,
-      favoriteIds: Array.from(new Set([...localFav, ...keep])),
-      bannedArtists,
-      bannedTracks,
-      playlists,
-      settings: { strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin },
-    };
-  }, [tracks, bannedArtists, bannedTracks, playlists, strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin]);
+    return null;
+  };
+  const writeBase = (hash: string, rev: string) => {
+    try {
+      localStorage.setItem(SYNC_BASE_KEY, JSON.stringify({ hash, rev }));
+    } catch (e) {}
+  };
 
-  const applyPayload = useCallback((p: SyncPayload) => {
-    const favSet = new Set(p.favoriteIds);
-    setTracks((prev) => {
-      cloudExtraFavRef.current = p.favoriteIds.filter((id) => !prev.some((t) => t.id === id));
-      return prev.map((t) => (t.isFavorite === favSet.has(t.id) ? t : { ...t, isFavorite: favSet.has(t.id) }));
-    });
-    setBannedArtists(p.bannedArtists || []);
-    setBannedTracks(p.bannedTracks || []);
-    setPlaylists(p.playlists || []);
-    if (p.settings?.strictnessMode) setStrictnessModeState(p.settings.strictnessMode);
-    if (p.settings?.lyricsDisplayMode) setLyricsDisplayModeState(p.settings.lyricsDisplayMode);
-    if (p.settings?.artworkAspectRatio) setArtworkAspectRatioState(p.settings.artworkAspectRatio);
-    if (p.settings?.retroPlayerSkin) setRetroPlayerSkin(p.settings.retroPlayerSkin);
+  const applyState = useCallback((a: ApplyState) => {
+    setTracks(a.tracks);
+    if (a.leaveDemoMode) setIsDemoMode(false);
+    setBannedArtists(a.bannedArtists);
+    setBannedTracks(a.bannedTracks);
+    setPlaylists(a.playlists);
+    const st = a.settings || {};
+    if (st.strictnessMode) setStrictnessModeState(st.strictnessMode);
+    if (st.lyricsDisplayMode) setLyricsDisplayModeState(st.lyricsDisplayMode);
+    if (st.artworkAspectRatio) setArtworkAspectRatioState(st.artworkAspectRatio);
+    if (st.retroPlayerSkin) setRetroPlayerSkin(st.retroPlayerSkin);
+    if (st.themeId) setThemeIdState(st.themeId);
   }, []);
 
   const ensureToken = useCallback(async () => {
     const t = tokenRef.current;
     if (t && t.expiresAt > Date.now()) return t.accessToken;
-    // 期限切れ（約1時間）: 同意済みなら無操作で更新を試みる（ブラウザによってはポップアップが開く）
+    // 期限切れ（約1時間）: 同意済みなら更新を試みる（ブラウザによってはポップアップが開く）
     const fresh = await requestAccessToken('');
     tokenRef.current = fresh;
     return fresh.accessToken;
   }, []);
 
   const runSync = useCallback(
-    async () => {
+    async (mode: SyncMode = 'auto') => {
       if (syncingRef.current) return;
       syncingRef.current = true;
       setIsCloudSyncing(true);
       setCloudError(null);
+      setCloudMessage(null);
       try {
         const token = await ensureToken();
         const remote = await pullFromCloud(token);
-        let localModified = '';
-        try {
-          localModified = localStorage.getItem(LOCAL_MODIFIED_KEY) || '';
-        } catch (e) {}
         if (remote) cloudFileIdRef.current = remote.fileId;
-        if (remote && remote.payload.updatedAt > localModified) {
-          skipNextSigRef.current = true;
-          setTimeout(() => {
-            skipNextSigRef.current = false;
-          }, 1500);
-          applyPayload(remote.payload);
-          try {
-            localStorage.setItem(LOCAL_MODIFIED_KEY, remote.payload.updatedAt);
-          } catch (e) {}
-        } else {
-          cloudFileIdRef.current = await pushToCloud(token, buildPayload(), cloudFileIdRef.current);
+
+        const latest = latestRef.current;
+        const localHash = hashString(latest.sig);
+        let modifiedAt = '';
+        try {
+          modifiedAt = localStorage.getItem(LOCAL_MODIFIED_KEY) || '';
+        } catch (e) {}
+
+        const decision = decideSync({
+          mode,
+          remote: remote ? remote.payload : null,
+          base: readBase(),
+          localHash,
+          local: {
+            tracks: latest.tracks,
+            bannedArtists: latest.bannedArtists,
+            bannedTracks: latest.bannedTracks,
+            playlists: latest.playlists,
+            settings: latest.settings,
+            modifiedAt,
+            isDemoMode: latest.isDemoMode,
+          },
+          now: nowIso(),
+        });
+
+        let rev = remote ? remote.payload.updatedAt : '';
+        if (decision.apply) applyState(decision.apply);
+        if (decision.push) {
+          cloudFileIdRef.current = await pushToCloud(token, decision.push, cloudFileIdRef.current);
+          rev = decision.push.updatedAt;
         }
-        const done = nowIso().replace('T', ' ').slice(0, 16);
+        if (decision.apply) {
+          // 反映後の状態が描画されてから、その内容を「同期済みの基準」として記録する
+          setTimeout(() => writeBase(hashString(latestRef.current.sig), rev), 1200);
+        } else if (rev) {
+          writeBase(localHash, rev);
+        }
+
+        setCloudMessage(decision.message);
+        const done = nowLabel();
         setCurrentUser((u) => {
           if (!u) return u;
           const updated = { ...u, lastSync: done };
@@ -1232,7 +1483,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsCloudSyncing(false);
       }
     },
-    [ensureToken, applyPayload, buildPayload]
+    [ensureToken, applyState]
   );
 
   const loginWithGoogle = useCallback(async () => {
@@ -1260,7 +1511,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
     setIsCloudSyncing(false);
-    await runSync();
+    await runSync('auto');
   }, [runSync]);
 
   const logout = useCallback(() => {
@@ -1269,69 +1520,52 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     cloudFileIdRef.current = null;
     setCurrentUser(null);
     setCloudError(null);
+    setCloudMessage(null);
     localStorage.removeItem('melotrace_user_account_v1');
+    localStorage.removeItem(SYNC_BASE_KEY);
   }, []);
 
   const syncWithCloud = useCallback(async () => {
     if (!currentUser) return;
-    await runSync();
+    await runSync('auto');
   }, [currentUser, runSync]);
 
-  // 同期対象（スキ・Ban・プレイリスト・設定）が変わったら更新時刻を記録し、ログイン中なら自動でクラウドへ保存
-  const syncSignature = useMemo(
-    () =>
-      JSON.stringify([
-        tracks.filter((t) => t.isFavorite).map((t) => t.id),
-        bannedArtists,
-        bannedTracks,
-        playlists,
-        strictnessMode,
-        lyricsDisplayMode,
-        artworkAspectRatio,
-        retroPlayerSkin,
-      ]),
-    [tracks, bannedArtists, bannedTracks, playlists, strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin]
+  const forceCloudSync = useCallback(
+    async (mode: 'push' | 'pull') => {
+      if (!currentUser) return;
+      await runSync(mode);
+    },
+    [currentUser, runSync]
   );
-  const lastSigRef = useRef<string | null>(null);
+
+  // 同期対象が「前回同期した内容」から変わったら、変更時刻を記録し、ログイン中なら自動で同期する
   useEffect(() => {
-    if (lastSigRef.current === null) {
-      lastSigRef.current = syncSignature;
-      return;
-    }
-    if (lastSigRef.current === syncSignature) return;
-    lastSigRef.current = syncSignature;
-    // クラウドからの反映による変化は「ローカル編集」として扱わない
-    if (skipNextSigRef.current) {
-      skipNextSigRef.current = false;
-      return;
-    }
+    if (!isHydratedRef.current) return;
+    const base = readBase();
+    if (!base || base.hash === hashString(syncSignature)) return;
     try {
       localStorage.setItem(LOCAL_MODIFIED_KEY, nowIso());
     } catch (e) {}
-    if (!currentUser || !tokenRef.current || tokenRef.current.expiresAt <= Date.now()) return;
-    const timer = setTimeout(async () => {
-      try {
-        const token = tokenRef.current?.accessToken;
-        if (!token) return;
-        cloudFileIdRef.current = await pushToCloud(token, buildPayload(), cloudFileIdRef.current);
-        setCloudError(null);
-      } catch (e: any) {
-        setCloudError(e?.message || '自動保存に失敗しました');
-      }
+    if (!currentUser) return;
+    const timer = setTimeout(() => {
+      const b = readBase();
+      if (!b || b.hash === hashString(latestRef.current.sig)) return;
+      if (!tokenRef.current || tokenRef.current.expiresAt <= Date.now()) return;
+      runSync('auto');
     }, 4000);
     return () => clearTimeout(timer);
-  }, [syncSignature, currentUser, buildPayload]);
+  }, [syncSignature, currentUser, runSync]);
 
   // Register iOS Lock Screen and MediaSession action listeners
   useEffect(() => {
     audioKeepAlive.setupMediaSessionHandlers({
-      onPlay: () => togglePlay(),
-      onPause: () => togglePlay(),
+      onPlay: () => resumePlayback(),
+      onPause: () => pausePlayback(),
       onNext: () => nextTrack(),
       onPrev: () => prevTrack(),
       onSeek: (sec) => seekTo(sec),
     });
-  }, [togglePlay, nextTrack, prevTrack, seekTo]);
+  }, [resumePlayback, pausePlayback, nextTrack, prevTrack, seekTo]);
 
   // Global Keyboard Shortcuts (Space: Play/Pause, Meta/Ctrl+Arrows: Skip, etc.)
   useEffect(() => {
@@ -1442,6 +1676,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         cloudError,
         recordYtHistory,
         setRecordYtHistory,
+        cloudMessage,
+        forceCloudSync,
+        playbackHint,
+        dismissPlaybackHint,
+        keepAliveEnabled,
+        setKeepAliveEnabled,
+        themeId,
+        setThemeId,
       }}
     >
       {children}

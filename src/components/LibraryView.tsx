@@ -200,7 +200,7 @@ export const LibraryView: React.FC = () => {
           className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white flex items-center justify-center transition-colors"
           title="曲を追加"
         >
-          <Plus className="w-5 h-5 text-[#fa2d48]" />
+          <Plus className="w-5 h-5 text-accent" />
         </button>
       </header>
 
@@ -248,7 +248,7 @@ export const LibraryView: React.FC = () => {
               : 'text-[#8e8e93] hover:text-white'
           }`}
         >
-          <Heart className="w-3.5 h-3.5 fill-current text-[#fa2d48]" />
+          <Heart className="w-3.5 h-3.5 fill-current text-accent" />
           <span>お気に入り</span>
         </button>
 
@@ -275,7 +275,7 @@ export const LibraryView: React.FC = () => {
               placeholder="曲名、アーティスト、ボカロP名で検索"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 rounded-xl bg-[#1c1c1e] text-xs text-white placeholder-[#8e8e93] focus:outline-none focus:ring-1 focus:ring-[#fa2d48] border border-white/5"
+              className="w-full pl-9 pr-8 py-2 rounded-xl bg-[#1c1c1e] text-xs text-white placeholder-[#8e8e93] focus:outline-none focus:ring-1 focus:ring-accent border border-white/5"
             />
             {searchQuery && (
               <button
@@ -323,7 +323,7 @@ export const LibraryView: React.FC = () => {
               <button
                 onClick={() => setGroupArtist((v) => !v)}
                 className={`px-2 py-1 rounded-full font-semibold transition-colors ${
-                  groupArtist ? 'bg-[#fa2d48] text-white' : 'bg-white/10 text-white/80'
+                  groupArtist ? 'bg-accent text-white' : 'bg-white/10 text-white/80'
                 }`}
               >
                 アーティスト毎
@@ -412,7 +412,7 @@ export const LibraryView: React.FC = () => {
                 <div
                   onClick={() => playTrack(track, filteredTracks)}
                   className={`flex items-center gap-3 p-2.5 rounded-xl apple-card hover:bg-white/[0.08] cursor-pointer active:scale-[0.99] transition-all group ${
-                    isCurrent ? 'bg-[#fa2d48]/15 border-[#fa2d48]/40' : ''
+                    isCurrent ? 'bg-accent/15 border-accent/40' : ''
                   }`}
                 >
                   <div className="relative w-11 h-11 rounded-lg overflow-hidden shrink-0 bg-[#2c2c2e]">
@@ -426,9 +426,9 @@ export const LibraryView: React.FC = () => {
                     {isCurrent && isPlaying && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                         <div className="flex items-end gap-[2px] h-3">
-                          <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-1" />
-                          <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-2" />
-                          <span className="w-1 bg-[#fa2d48] rounded-full apple-eq-bar-3" />
+                          <span className="w-1 bg-accent rounded-full apple-eq-bar-1" />
+                          <span className="w-1 bg-accent rounded-full apple-eq-bar-2" />
+                          <span className="w-1 bg-accent rounded-full apple-eq-bar-3" />
                         </div>
                       </div>
                     )}
@@ -437,7 +437,7 @@ export const LibraryView: React.FC = () => {
                   <div className="flex-1 min-w-0 pr-1">
                     <h4
                       className={`text-xs font-semibold truncate leading-snug ${
-                        isCurrent ? 'text-[#fa2d48]' : 'text-white'
+                        isCurrent ? 'text-accent' : 'text-white'
                       }`}
                     >
                       {track.title}
@@ -447,7 +447,7 @@ export const LibraryView: React.FC = () => {
                         e.stopPropagation();
                         setSelectedArtistForDetail(track.artist);
                       }}
-                      className="text-[11px] text-[#8e8e93] hover:text-[#fa2d48] hover:underline truncate mt-0.5 cursor-pointer"
+                      className="text-[11px] text-[#8e8e93] hover:text-accent hover:underline truncate mt-0.5 cursor-pointer"
                       title="アーティスト詳細を開く"
                     >
                       {track.artist}
@@ -464,12 +464,12 @@ export const LibraryView: React.FC = () => {
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => toggleFavorite(track.id)}
-                      className="p-2 text-[#8e8e93] hover:text-[#fa2d48] transition-colors"
+                      className="p-2 text-[#8e8e93] hover:text-accent transition-colors"
                       aria-label="お気に入り"
                     >
                       <Heart
                         className={`w-4 h-4 ${
-                          track.isFavorite ? 'text-[#fa2d48] fill-[#fa2d48]' : ''
+                          track.isFavorite ? 'text-accent fill-accent' : ''
                         }`}
                       />
                     </button>
@@ -512,7 +512,7 @@ export const LibraryView: React.FC = () => {
 
       {/* Track Action Bottom Sheet */}
       {targetTrackForMenu && (
-        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex items-end justify-center p-3 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[70] bg-black/80 flex items-end justify-center p-3 animate-in fade-in duration-200">
           <div className="w-full max-w-sm rounded-2xl apple-card p-4 shadow-2xl border border-white/10 flex flex-col gap-2">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <div className="min-w-0 pr-2">
@@ -529,7 +529,7 @@ export const LibraryView: React.FC = () => {
                 banTrack(targetTrackForMenu.id);
                 setTargetTrackForMenu(null);
               }}
-              className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-left text-xs font-semibold text-[#fa2d48] flex items-center gap-2"
+              className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-left text-xs font-semibold text-accent flex items-center gap-2"
             >
               <Ban className="w-4 h-4" />
               <span>この曲を非表示 (Ban) にする</span>
@@ -540,7 +540,7 @@ export const LibraryView: React.FC = () => {
                 banArtist(targetTrackForMenu.artist);
                 setTargetTrackForMenu(null);
               }}
-              className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-left text-xs font-semibold text-[#fa2d48] flex items-center gap-2"
+              className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-left text-xs font-semibold text-accent flex items-center gap-2"
             >
               <Ban className="w-4 h-4" />
               <span>「{targetTrackForMenu.artist}」の全動画をBan</span>
@@ -571,7 +571,7 @@ export const LibraryView: React.FC = () => {
                     setTargetTrackForMenu(null);
                     setShowNewPlModal(true);
                   }}
-                  className="px-2.5 py-1.5 rounded-full bg-[#fa2d48]/20 text-[11px] font-semibold text-[#fa2d48]"
+                  className="px-2.5 py-1.5 rounded-full bg-accent/20 text-[11px] font-semibold text-accent"
                 >
                   ＋ 新規作成
                 </button>
@@ -600,7 +600,7 @@ export const LibraryView: React.FC = () => {
             </h3>
             <button
               onClick={() => setShowNewPlModal(true)}
-              className="flex items-center gap-1 text-xs text-[#fa2d48] font-semibold hover:underline"
+              className="flex items-center gap-1 text-xs text-accent font-semibold hover:underline"
             >
               <FolderPlus className="w-3.5 h-3.5" />
               <span>新規作成</span>
@@ -616,7 +616,7 @@ export const LibraryView: React.FC = () => {
                   onClick={() => setSelectedPlaylistId(pl.id)}
                   className="flex items-center gap-3 p-3 rounded-xl apple-card hover:bg-white/[0.08] cursor-pointer transition-all"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-[#3a1c28] to-[#fa2d48]/40 border border-white/10 flex items-center justify-center shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-[#3a1c28] to-accent/40 border border-white/10 flex items-center justify-center shrink-0">
                     <ListMusic className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -655,7 +655,7 @@ export const LibraryView: React.FC = () => {
           <div className="fixed inset-0 z-[55] bg-black flex flex-col">
             <div className="max-w-lg w-full mx-auto flex flex-col h-full">
               <header className="flex items-center justify-between px-3 pt-[max(env(safe-area-inset-top,0px),12px)] pb-2">
-                <button onClick={() => setSelectedPlaylistId(null)} className="p-2 text-[#fa2d48] flex items-center text-sm font-semibold">
+                <button onClick={() => setSelectedPlaylistId(null)} className="p-2 text-accent flex items-center text-sm font-semibold">
                   <ChevronLeft className="w-5 h-5" />戻る
                 </button>
                 <div className="flex items-center gap-1">
@@ -676,7 +676,7 @@ export const LibraryView: React.FC = () => {
                         setSelectedPlaylistId(null);
                       }
                     }}
-                    className="p-2 text-[#fa2d48]"
+                    className="p-2 text-accent"
                     aria-label="プレイリストを削除"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -690,7 +690,7 @@ export const LibraryView: React.FC = () => {
                   <button
                     disabled={plTracks.length === 0}
                     onClick={() => { setIsShuffle(false); playTrack(plTracks[0], plTracks); }}
-                    className="flex-1 py-2.5 rounded-xl bg-[#fa2d48] text-white text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"
+                    className="flex-1 py-2.5 rounded-xl bg-accent text-white text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />再生
                   </button>
@@ -722,12 +722,12 @@ export const LibraryView: React.FC = () => {
                       className="w-11 h-11 rounded-lg object-cover bg-[#2c2c2e]"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-semibold truncate ${currentTrack?.id === t.id ? 'text-[#fa2d48]' : 'text-white'}`}>{t.title}</p>
+                      <p className={`text-xs font-semibold truncate ${currentTrack?.id === t.id ? 'text-accent' : 'text-white'}`}>{t.title}</p>
                       <p className="text-[11px] text-[#8e8e93] truncate">{t.artist}</p>
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); removeTrackFromPlaylist(pl.id, t.id); }}
-                      className="p-2 text-[#8e8e93] hover:text-[#fa2d48]"
+                      className="p-2 text-[#8e8e93] hover:text-accent"
                       aria-label="プレイリストから外す"
                     >
                       <X className="w-4 h-4" />
@@ -747,7 +747,7 @@ export const LibraryView: React.FC = () => {
 
       {/* Add Track by URL Modal */}
       {showAddUrlModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="w-full max-w-sm rounded-2xl apple-card p-5 shadow-2xl border border-white/10">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-base font-bold text-white">YouTubeの曲を追加</h3>
@@ -765,14 +765,14 @@ export const LibraryView: React.FC = () => {
             <form onSubmit={handleAddTrack} className="flex flex-col gap-3">
               <div>
                 <label className="text-[11px] font-semibold text-[#8e8e93] block mb-1">
-                  YouTubeのURL / ID <span className="text-[#fa2d48]">*</span>
+                  YouTubeのURL / ID <span className="text-accent">*</span>
                 </label>
                 <input
                   type="text"
                   placeholder="https://youtu.be/... または watch?v=..."
                   value={inputUrl}
                   onChange={(e) => setInputUrl(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent"
                   required
                 />
               </div>
@@ -786,7 +786,7 @@ export const LibraryView: React.FC = () => {
                   placeholder="例: 雨とペトラ, About me"
                   value={inputTitle}
                   onChange={(e) => setInputTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent"
                 />
               </div>
 
@@ -799,7 +799,7 @@ export const LibraryView: React.FC = () => {
                   placeholder="例: バルーン, 蝶々P"
                   value={inputArtist}
                   onChange={(e) => setInputArtist(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+                  className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent"
                 />
               </div>
 
@@ -813,7 +813,7 @@ export const LibraryView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 rounded-xl bg-[#fa2d48] text-white text-xs font-bold flex items-center justify-center gap-1"
+                  className="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-bold flex items-center justify-center gap-1"
                 >
                   {addSuccess ? (
                     <>
@@ -832,7 +832,7 @@ export const LibraryView: React.FC = () => {
 
       {/* New Playlist Modal */}
       {showNewPlModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="w-full max-w-sm rounded-2xl apple-card p-5 shadow-2xl border border-white/10">
             <h3 className="text-base font-bold text-white mb-2">新規プレイリスト作成</h3>
             <form onSubmit={handleCreatePlaylist} className="flex flex-col gap-3">
@@ -841,7 +841,7 @@ export const LibraryView: React.FC = () => {
                 placeholder="プレイリスト名"
                 value={newPlName}
                 onChange={(e) => setNewPlName(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#fa2d48]"
+                className="w-full px-3 py-2 rounded-xl bg-[#2c2c2e] text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent"
                 required
               />
               <div className="flex gap-2">
@@ -854,7 +854,7 @@ export const LibraryView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 rounded-xl bg-[#fa2d48] text-white text-xs font-bold"
+                  className="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-bold"
                 >
                   作成
                 </button>
