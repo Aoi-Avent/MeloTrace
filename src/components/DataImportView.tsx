@@ -28,6 +28,7 @@ import { MusicTrack, ActiveTab } from '../types/music';
 import { BackgroundPlayButton } from './BackgroundGuide';
 import { AccountCard } from './AccountCard';
 import { ThemePicker } from './ThemePicker';
+import { AppearanceCard } from './AppearanceCard';
 import { ArtistFilterToggle } from './ArtistFilterToggle';
 import { PlayDiagnostics } from './PlayDiagnostics';
 import { unzipSync } from 'fflate';
@@ -361,6 +362,8 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       </header>
 
       <ThemePicker />
+
+      <AppearanceCard />
 
       <div className="mb-5 p-4 rounded-2xl apple-card border border-white/10">
         <h3 className="text-sm font-bold text-white mb-1">表示するチャンネル</h3>

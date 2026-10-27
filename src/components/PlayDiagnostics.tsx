@@ -1,10 +1,12 @@
-import React from 'react';
-import { Timer } from 'lucide-react';
+import React, { useState } from 'react';
+import { Timer, Copy, RefreshCw } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 
 /** 「タップしてから鳴り始めるまで」の実測値。遅い原因が広告なのか読み込みなのかを切り分けるためのもの */
 export const PlayDiagnostics: React.FC = () => {
-  const { playMetrics } = usePlayer();
+  const { playMetrics, getPlaybackLog, clearPlaybackLog, restartPlayer } = usePlayer();
+  const [log, setLog] = useState<string[] | null>(null);
+  const [copied, setCopied] = useState(false);
   const sec = (ms: number) => (ms / 1000).toFixed(1) + '秒';
   const avg = playMetrics.length ? playMetrics.reduce((a, m) => a + m.ms, 0) / playMetrics.length : 0;
   const avgNoAd = playMetrics.length ? playMetrics.reduce((a, m) => a + Math.max(0, m.ms - m.adMs), 0) / playMetrics.length : 0;
@@ -35,6 +37,56 @@ export const PlayDiagnostics: React.FC = () => {
           </div>
         </>
       )}
+
+      <div className="mt-3 pt-3 border-t border-white/10">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setLog(getPlaybackLog())}
+            className="px-3 py-1.5 rounded-full bg-white/10 text-white text-[11px] font-semibold"
+          >
+            再生ログを表示
+          </button>
+          <button
+            onClick={() => {
+              if (window.confirm('YouTubeプレーヤーを作り直します。再生中の曲は続きから再開します。')) restartPlayer();
+            }}
+            className="px-3 py-1.5 rounded-full bg-white/10 text-white text-[11px] font-semibold flex items-center gap-1"
+          >
+            <RefreshCw className="w-3 h-3" />プレーヤーを再起動
+          </button>
+        </div>
+        {log && (
+          <div className="mt-2">
+            <pre className="max-h-48 overflow-auto rounded-xl bg-black/50 p-2 text-[10px] leading-relaxed text-[#d1d1d6] whitespace-pre-wrap break-all">
+              {log.length ? log.join('\n') : 'まだ記録がありません'}
+            </pre>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(log.join('\n'));
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  } catch (e) {}
+                }}
+                className="px-3 py-1.5 rounded-full bg-accent text-white text-[11px] font-semibold flex items-center gap-1"
+              >
+                <Copy className="w-3 h-3" />{copied ? 'コピーしました' : 'ログをコピー'}
+              </button>
+              <button
+                onClick={() => {
+                  clearPlaybackLog();
+                  setLog([]);
+                }}
+                className="px-3 py-1.5 rounded-full bg-white/10 text-white text-[11px] font-semibold"
+              >
+                消去
+              </button>
+            </div>
+            <p className="text-[10px] text-[#8e8e93] mt-1.5">曲名とYouTubeの動画IDのみで、個人情報は含まれません。不具合の報告にお使いください。</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

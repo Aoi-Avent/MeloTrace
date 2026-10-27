@@ -144,6 +144,11 @@ interface PlayerContextType {
   retryAlbumArt: (track: MusicTrack) => void;
   // Diagnostics
   playMetrics: PlayMetric[];
+  getPlaybackLog: () => string[];
+  clearPlaybackLog: () => void;
+  restartPlayer: () => void;
+  isUnplayable: (id: string) => boolean;
+  playbackHintLink: string | null;
 }
 
 export interface PlayMetric {
@@ -152,6 +157,16 @@ export interface PlayMetric {
   ms: number; // タップから曲が鳴り始めるまで
   adMs: number; // そのうち広告にかかった時間
   at: string;
+}
+
+/** 再生できないと分かっている曲を飛ばして、次（または前）の曲の位置を選ぶ */
+function pickPlayableIndex(queue: MusicTrack[], from: number, dir: 1 | -1, shuffle: boolean, bad: Set<string>): number {
+  const n = queue.length;
+  for (let tries = 0; tries < Math.min(n, 30); tries++) {
+    const idx = shuffle && dir === 1 ? Math.floor(Math.random() * n) : (((from + dir * (tries + 1)) % n) + n) % n;
+    if (!bad.has(queue[idx].id)) return idx;
+  }
+  return (((from + dir) % n) + n) % n;
 }
 
 const STORAGE_KEY_TRACKS = 'melotrace_tracks_v5';
@@ -369,7 +384,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const playbackRateRef = useRef<number>(playbackRate);
   const [isAdPlaying, setIsAdPlaying] = useState<boolean>(false);
   const isAdPlayingRef = useRef<boolean>(false);
-  const [playbackHint, setPlaybackHint] = useState<string | null>(null);
+  const [playbackHint, setPlaybackHintRaw] = useState<string | null>(null);
+  const [playbackHintLink, setPlaybackHintLink] = useState<string | null>(null);
+  const setPlaybackHint = useCallback((msg: string | null, link?: string | null) => {
+    setPlaybackHintRaw(msg);
+    setPlaybackHintLink(msg ? link ?? null : null);
+  }, []);
   const [keepAliveEnabled, setKeepAliveEnabledState] = useState<boolean>(() => audioKeepAlive.isEnabled());
   const [themeId, setThemeIdState] = useState<string>(() => getSavedThemeId());
   const [artworkSource, setArtworkSourceState] = useState<'album' | 'youtube'>(() => {
@@ -400,6 +420,24 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const watchdogTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const isPlayingRef = useRef<boolean>(false);
   const tickCountRef = useRef<number>(0);
+  const playbackLogRef = useRef<string[]>([]);
+  const lastTimeRef = useRef<number>(0);
+  const lastAdvanceAtRef = useRef<number>(0);
+  const stallCountRef = useRef<number>(0);
+  const mutedStartRef = useRef<boolean>(false);
+  const pendingStartRef = useRef<number>(0);
+  const createPlayerRef = useRef<() => void>(() => {});
+  const html5ErrorCountRef = useRef<number>(0);
+  const unplayableRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const v = JSON.parse(localStorage.getItem('melotrace_unplayable_v1') || '[]');
+        return new Set<string>(Array.isArray(v) ? v : []);
+      } catch (e) {
+        return new Set<string>();
+      }
+    })()
+  );
 
   useEffect(() => {
     applyTheme(themeId);
@@ -590,12 +628,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
     if (queue.length === 0) return;
-    let nextIdx = 0;
-    if (isShuffle) {
-      nextIdx = Math.floor(Math.random() * queue.length);
-    } else {
-      nextIdx = (queueIndex + 1) % queue.length;
-    }
+    const nextIdx = pickPlayableIndex(queue, queueIndex, 1, isShuffle, unplayableRef.current);
     setQueueIndex(nextIdx);
     const nextT = queue[nextIdx];
     if (nextT) {
@@ -776,6 +809,89 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   // ---------- Playback robustness helpers ----------
+  // ---------- 再生の詳細ログ（不具合調査用・端末内のみ） ----------
+  const logEvent = useCallback((msg: string) => {
+    const d = new Date();
+    const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}.${String(d.getMilliseconds()).padStart(3, '0')}`;
+    const arr = playbackLogRef.current;
+    arr.push(`${t} ${msg}`);
+    if (arr.length > 150) arr.splice(0, arr.length - 150);
+  }, []);
+  const getPlaybackLog = useCallback(() => [...playbackLogRef.current], []);
+  const clearPlaybackLog = useCallback(() => {
+    playbackLogRef.current = [];
+  }, []);
+  const isUnplayable = useCallback((id: string) => unplayableRef.current.has(id), []);
+  const markUnplayable = useCallback((id: string, on: boolean) => {
+    const set = unplayableRef.current;
+    if (on === set.has(id)) return;
+    if (on) set.add(id);
+    else set.delete(id);
+    try {
+      localStorage.setItem('melotrace_unplayable_v1', JSON.stringify(Array.from(set).slice(-500)));
+    } catch (e) {}
+  }, []);
+
+  /** 固まったYouTubeプレーヤーを作り直す（長時間の放置やバックグラウンド後に効くことがある） */
+  const recreatePlayer = useCallback(
+    (trackId: string | null, startSec = 0) => {
+      logEvent(`プレーヤーを作り直し (${trackId ?? '-'}, ${Math.round(startSec)}s)`);
+      const old = ytPlayerRef.current;
+      try {
+        old?.destroy?.();
+      } catch (e) {}
+      ytPlayerRef.current = null;
+      setYtPlayerReady(false);
+      const wrapper = document.getElementById('yt-player-wrapper');
+      if (wrapper) {
+        wrapper.innerHTML = '';
+        const d = document.createElement('div');
+        d.id = 'yt-player-target';
+        d.className = 'w-full h-full';
+        wrapper.appendChild(d);
+      }
+      if (trackId && currentTrackRef.current) {
+        pendingTrackRef.current = currentTrackRef.current.id === trackId ? currentTrackRef.current : { ...currentTrackRef.current, id: trackId };
+        pendingStartRef.current = startSec;
+      }
+      createPlayerRef.current();
+    },
+    [logEvent]
+  );
+
+  const restartPlayer = useCallback(() => {
+    const t = currentTrackRef.current;
+    wantPlayingRef.current = !!t;
+    loadSeqRef.current += 1;
+    loadedAtRef.current = Date.now();
+    recreatePlayer(t ? t.id : null, lastTimeRef.current || 0);
+    if (t) {
+      setIsPlaying(true);
+      setIsBuffering(true);
+    }
+  }, [recreatePlayer]);
+
+  // YouTubeのAPIスクリプトが読み込めていない場合は、数回読み込み直す
+  useEffect(() => {
+    const retry = () => {
+      if ((window as any).YT?.Player) return;
+      logEvent('YouTube API 未読込 → スクリプトを再読み込み');
+      const s2 = document.createElement('script');
+      s2.src = 'https://www.youtube.com/iframe_api?retry=' + Date.now();
+      s2.async = true;
+      document.head.appendChild(s2);
+    };
+    const t1 = setTimeout(retry, 8000);
+    const t2 = setTimeout(() => {
+      retry();
+      if (!(window as any).YT?.Player) setPlaybackHint('YouTubeのプレーヤーを読み込めていません。通信状況を確認してください。');
+    }, 20000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [logEvent, setPlaybackHint]);
+
   const clearWatchdog = useCallback(() => {
     watchdogTimersRef.current.forEach((t) => clearTimeout(t));
     watchdogTimersRef.current = [];
@@ -849,24 +965,29 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     (id: string) => {
       clearWatchdog();
       const mySeq = loadSeqRef.current;
-      const steps: Array<[number, 'kick' | 'reload' | 'hard' | 'giveup']> = [
-        [2500, 'kick'],
-        [6000, 'reload'],
-        [10500, 'hard'],
-        [16000, 'giveup'],
+      const steps: Array<[number, 'kick' | 'reload' | 'muted' | 'recreate' | 'giveup']> = [
+        [1800, 'kick'],
+        [4800, 'reload'],
+        [8500, 'muted'],
+        [13000, 'recreate'],
+        [19000, 'giveup'],
       ];
       steps.forEach(([ms, action]) => {
         watchdogTimersRef.current.push(
           setTimeout(() => {
             if (mySeq !== loadSeqRef.current || !wantPlayingRef.current) return;
             const p = ytPlayerRef.current;
-            if (!p) return;
+            if (!p) {
+              if (action === 'recreate') recreatePlayer(id, 0);
+              return;
+            }
             if (isAdPlayingRef.current) return; // 広告再生中は待つ
             let st = -2;
             try {
               st = p.getPlayerState?.();
             } catch (e) {}
             if (st === 1) return; // 再生中
+            logEvent(`見張り: ${action} (状態 ${st})`);
             try {
               if (action === 'kick') {
                 p.unMute?.();
@@ -875,28 +996,30 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 if (st === 3) return; // 通信中は待つ
                 p.loadVideoById({ videoId: id, startSeconds: 0 });
                 p.playVideo?.();
-              } else if (action === 'hard') {
-                p.stopVideo?.();
+              } else if (action === 'muted') {
+                if (st === 3) return;
+                // 自動再生が拒否されている場合の最終手段: ミュートで開始（ミュート再生は許可されやすい）→再生後に音を戻す
+                mutedStartRef.current = true;
+                p.mute?.();
                 p.loadVideoById({ videoId: id, startSeconds: 0 });
-                setTimeout(() => {
-                  try {
-                    ytPlayerRef.current?.playVideo?.();
-                  } catch (e) {}
-                }, 300);
+                p.playVideo?.();
+              } else if (action === 'recreate') {
+                recreatePlayer(id, 0);
               } else {
                 setIsPlaying(false);
                 setIsBuffering(false);
-                setPlaybackHint('再生を開始できませんでした。▶ボタンをもう一度押してください。');
+                setPlaybackHint('再生を開始できませんでした。▶ボタンを押してください。', `https://www.youtube.com/watch?v=${id}`);
               }
             } catch (e) {}
           }, ms)
         );
       });
     },
-    [clearWatchdog]
+    [clearWatchdog, recreatePlayer, logEvent, setPlaybackHint]
   );
 
   const resumePlayback = useCallback(() => {
+    logEvent('再生/再開 操作');
     wantPlayingRef.current = true;
     setPlaybackHint(null);
     const p = ytPlayerRef.current;
@@ -908,9 +1031,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsPlaying(true);
     audioKeepAlive.onPlay(currentTrackRef.current);
     if (currentTrackRef.current) startWatchdog(currentTrackRef.current.id);
-  }, [startWatchdog]);
+  }, [startWatchdog, logEvent]);
 
   const pausePlayback = useCallback(() => {
+    logEvent('一時停止 操作');
     wantPlayingRef.current = false;
     clearWatchdog();
     try {
@@ -919,7 +1043,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsPlaying(false);
     setIsBuffering(false);
     audioKeepAlive.onPause();
-  }, [clearWatchdog]);
+  }, [clearWatchdog, logEvent]);
 
   // 画面復帰時にUI状態を実際のプレイヤー状態へ合わせる（止まっているのに再生中表示、を防ぐ）
   useEffect(() => {
@@ -932,7 +1056,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const st = p.getPlayerState();
         const playingNow = st === 1 || st === 3;
         // 画面復帰直後に一時停止状態を検知しても、再生したい意思があるなら表示を変えずにすぐ再開する（途切れを最小化）
-        if (!playingNow && wantPlayingRef.current) {
+        logEvent(`画面${document.visibilityState === 'visible' ? '復帰' : '非表示'} 状態=${st}`);
+        if (!playingNow && wantPlayingRef.current && (st === -1 || st === 5) && currentTrackRef.current) {
+          // 一度も再生が始まっていない/プレーヤーが初期状態に戻っている: 位置を保って読み込み直す
+          p.loadVideoById({ videoId: currentTrackRef.current.id, startSeconds: lastTimeRef.current || 0 });
+        } else if (!playingNow && wantPlayingRef.current) {
           p.playVideo?.();
         } else {
           setIsPlaying((prev) => (prev === playingNow ? prev : playingNow));
@@ -973,6 +1101,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       try {
+        logEvent('プレーヤー作成');
         ytPlayerRef.current = new window.YT.Player('yt-player-target', {
           height: '100%',
           width: '100%',
@@ -1004,8 +1133,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 const p = pendingTrackRef.current;
                 pendingTrackRef.current = null;
                 try {
-                  ytPlayerRef.current.loadVideoById({ videoId: p.id, startSeconds: 0 });
+                  ytPlayerRef.current.loadVideoById({ videoId: p.id, startSeconds: pendingStartRef.current || 0 });
                   ytPlayerRef.current.playVideo?.();
+                  pendingStartRef.current = 0;
                 } catch (e) {
                   console.warn('onReady loadVideoById failed', e);
                 }
@@ -1014,12 +1144,34 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             onStateChange: (event: any) => {
               // 1: PLAYING, 2: PAUSED, 0: ENDED, 3: BUFFERING, -1: UNSTARTED, 5: CUED
               const p = ytPlayerRef.current;
+              logEvent(`状態 ${event.data}`);
               if (event.data === 1) {
                 setIsPlaying(true);
                 consecutiveErrorsRef.current = 0;
+                html5ErrorCountRef.current = 0;
                 const isAd = evaluateAd();
                 applyAdState(isAd);
                 if (!isAd) {
+                  if (currentTrackRef.current) markUnplayable(currentTrackRef.current.id, false);
+                  if (mutedStartRef.current) {
+                    // ミュートで始めた場合: 音を戻す。ブラウザに止められたら、タップを促す
+                    mutedStartRef.current = false;
+                    try {
+                      p?.unMute?.();
+                      p?.setVolume?.(100);
+                    } catch (e) {}
+                    setTimeout(() => {
+                      let st2 = -2;
+                      try {
+                        st2 = ytPlayerRef.current?.getPlayerState?.();
+                      } catch (e) {}
+                      if (st2 !== 1 && st2 !== 3) {
+                        logEvent('ミュート解除後に停止 → タップ待ち');
+                        setIsPlaying(false);
+                        setPlaybackHint('音を出すには▶をタップしてください。');
+                      }
+                    }, 1500);
+                  }
                   recordMetricIfReady();
                   clearWatchdog();
                   setPlaybackHint(null);
@@ -1073,6 +1225,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             },
             onError: (err: any) => {
               const errCode = err?.data;
+              logEvent(`エラー ${errCode}`);
               console.warn('YouTube Player Error Code:', errCode);
               clearWatchdog();
               setIsBuffering(false);
@@ -1081,17 +1234,34 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               try {
                 ytPlayerRef.current?.unMute?.();
               } catch (e) {}
-              // 2: Invalid param, 5: HTML5 player error, 100: Not found/private, 101/150: Embed blocked
+              const cur = currentTrackRef.current;
+              const ytLink = cur ? `https://www.youtube.com/watch?v=${cur.id}` : null;
+
+              // 5: プレーヤー内部エラー → 続くようなら作り直す
+              if (errCode === 5) {
+                html5ErrorCountRef.current += 1;
+                if (html5ErrorCountRef.current >= 2 && cur) {
+                  html5ErrorCountRef.current = 0;
+                  recreatePlayer(cur.id, lastTimeRef.current || 0);
+                  return;
+                }
+              }
+              // 100: 動画が存在しない/非公開, 101・150: 埋め込み再生が許可されていない, 2: 不正なパラメータ
               if ([2, 5, 100, 101, 150].includes(errCode)) {
+                if (cur && [100, 101, 150].includes(errCode)) markUnplayable(cur.id, true);
+                const reason =
+                  errCode === 101 || errCode === 150
+                    ? 'この動画は、投稿者の設定によりアプリ内で再生できません。'
+                    : errCode === 100
+                    ? 'この動画は削除または非公開になっています。'
+                    : '再生できない動画でした。';
                 if (consecutiveErrorsRef.current < 2) {
                   consecutiveErrorsRef.current += 1;
-                  console.warn(`Unplayable video (${errCode}), skipping to next (attempt ${consecutiveErrorsRef.current}/2)`);
-                  setPlaybackHint('再生できない動画だったため、次の曲へ進みました。');
-                  setTimeout(() => nextTrackRef.current(), 600);
+                  setPlaybackHint(`${reason}次の曲へ進みます。`, ytLink);
+                  setTimeout(() => nextTrackRef.current(), 900);
                 } else {
-                  console.warn('Multiple consecutive playback errors. Pausing playback to prevent skip storm.');
                   wantPlayingRef.current = false;
-                  setPlaybackHint('再生できない曲が続いたため停止しました。▶で再開できます。');
+                  setPlaybackHint(`${reason}再生できない曲が続いたため停止しました。▶で再開できます。`, ytLink);
                   setIsPlaying(false);
                   consecutiveErrorsRef.current = 0;
                 }
@@ -1104,6 +1274,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
 
+    createPlayerRef.current = initPlayer;
     if (window.YT && window.YT.Player) {
       initPlayer();
     } else {
@@ -1130,6 +1301,36 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const dur = p.getDuration();
         if (typeof current === 'number' && !isNaN(current)) {
           setCurrentTime((prev) => (Math.abs(prev - current) < 0.2 ? prev : current));
+          // 再生が進まないまま固まっていないかを監視（バックグラウンド中は対象外）
+          const now = Date.now();
+          if (Math.abs(current - lastTimeRef.current) > 0.05) {
+            lastAdvanceAtRef.current = now;
+            stallCountRef.current = 0;
+          } else if (
+            wantPlayingRef.current &&
+            document.visibilityState === 'visible' &&
+            lastAdvanceAtRef.current > 0 &&
+            now - lastAdvanceAtRef.current > 7000 &&
+            now - loadedAtRef.current > 9000
+          ) {
+            lastAdvanceAtRef.current = now;
+            stallCountRef.current += 1;
+            const tr = currentTrackRef.current;
+            logEvent(`再生が進まない (${stallCountRef.current}回目) ${current.toFixed(1)}s`);
+            try {
+              if (stallCountRef.current === 1) {
+                p.seekTo?.(current, true);
+                p.playVideo?.();
+              } else if (stallCountRef.current === 2 && tr) {
+                p.loadVideoById({ videoId: tr.id, startSeconds: current });
+                p.playVideo?.();
+              } else if (tr) {
+                stallCountRef.current = 0;
+                recreatePlayer(tr.id, current);
+              }
+            } catch (e) {}
+          }
+          lastTimeRef.current = current;
         }
         if (typeof dur === 'number' && !isNaN(dur) && dur > 0) {
           setDuration((prev) => (prev === dur ? prev : dur));
@@ -1146,7 +1347,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }, pollMs);
     return () => clearInterval(id);
-  }, [isPlaying, pollMs, evaluateAd, applyAdState, recordMetricIfReady]);
+  }, [isPlaying, pollMs, evaluateAd, applyAdState, recordMetricIfReady, logEvent, recreatePlayer]);
 
   const playTrack = useCallback(
     (track: MusicTrack, newQueue?: MusicTrack[], shouldOpenModal: boolean = false) => {
@@ -1185,6 +1386,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setPlaybackHint(null);
 
       metricRef.current = { id: track.id, title: track.title, tapAt: performance.now(), adStartedAt: 0, adMs: 0, done: false };
+      logEvent(`再生要求 ${track.id} 「${track.title.slice(0, 24)}」`);
+      lastTimeRef.current = 0;
+      lastAdvanceAtRef.current = 0;
+      stallCountRef.current = 0;
+      mutedStartRef.current = false;
+      html5ErrorCountRef.current = 0;
 
       const p = ytPlayerRef.current;
       if (p?.loadVideoById) {
@@ -1220,7 +1427,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         })
       );
     },
-    [queue, musicTracks, bgmTracks, activeTracks, startWatchdog]
+    [queue, musicTracks, bgmTracks, activeTracks, startWatchdog, logEvent]
   );
 
   const playBgmStation = useCallback(() => {
@@ -1245,12 +1452,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const nextTrack = useCallback(() => {
     if (queue.length === 0) return;
-    let nextIdx = 0;
-    if (isShuffle) {
-      nextIdx = Math.floor(Math.random() * queue.length);
-    } else {
-      nextIdx = (queueIndex + 1) % queue.length;
-    }
+    const nextIdx = pickPlayableIndex(queue, queueIndex, 1, isShuffle, unplayableRef.current);
     setQueueIndex(nextIdx);
     const nextT = queue[nextIdx];
     if (nextT) {
@@ -1264,7 +1466,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const prevTrack = useCallback(() => {
     if (queue.length === 0) return;
-    const prevIdx = (queueIndex - 1 + queue.length) % queue.length;
+    const prevIdx = pickPlayableIndex(queue, queueIndex, -1, false, unplayableRef.current);
     setQueueIndex(prevIdx);
     const prevT = queue[prevIdx];
     if (prevT) {
@@ -1951,6 +2153,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         albumArtState,
         retryAlbumArt,
         playMetrics,
+        getPlaybackLog,
+        clearPlaybackLog,
+        restartPlayer,
+        isUnplayable,
+        playbackHintLink,
       }}
     >
       {children}

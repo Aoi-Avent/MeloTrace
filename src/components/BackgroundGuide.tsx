@@ -20,7 +20,7 @@ export const BackgroundPlayButton: React.FC<{ className?: string; compact?: bool
 };
 
 export const BackgroundGuideModal: React.FC = () => {
-  const { isBgGuideOpen, setIsBgGuideOpen, keepAliveEnabled, setKeepAliveEnabled } = usePlayer();
+  const { isBgGuideOpen, setIsBgGuideOpen, keepAliveEnabled, setKeepAliveEnabled, currentTrack } = usePlayer();
   if (!isBgGuideOpen) return null;
 
   const iosMobile = isIOSMobileMode();
@@ -98,6 +98,23 @@ export const BackgroundGuideModal: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {currentTrack && (
+          <div className="rounded-2xl p-3.5 mb-3 bg-white/5 border border-white/10">
+            <p className="text-xs font-bold text-white mb-1">YouTube Premiumをお持ちなら</p>
+            <p className="text-[11px] text-[#d1d1d6] leading-relaxed mb-2">
+              今の曲をYouTube Musicアプリで開くと、画面を閉じても確実に再生が続きます（アプリが入っている場合）。
+            </p>
+            <a
+              href={`https://music.youtube.com/watch?v=${currentTrack.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-3.5 py-2 rounded-full bg-white text-black text-xs font-bold"
+            >
+              YouTube Musicで開く
+            </a>
+          </div>
+        )}
 
         <div className="rounded-2xl p-3.5 bg-[#ff9f0a]/10 border border-[#ff9f0a]/30">
           <p className="text-xs font-bold text-[#ff9f0a] mb-1.5 flex items-center gap-1.5">

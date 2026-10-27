@@ -26,7 +26,7 @@ export const MiniPlayer: React.FC = () => {
   const album = artworkSource === 'album' ? albumArtFor(currentTrack.id) : null;
 
   return (
-    <div className="fixed bottom-[calc(3.75rem+max(env(safe-area-inset-bottom,0px),8px))] left-0 right-0 z-30 px-3">
+    <div className="fixed bottom-[calc(3.75rem+max(env(safe-area-inset-bottom,0px),8px)+var(--bottom-gap,0px))] left-0 right-0 z-30 px-3">
       <div
         onClick={() => setIsNowPlayingOpen(true)}
         className="max-w-lg mx-auto relative overflow-hidden rounded-2xl apple-pill-miniplayer cursor-pointer active:scale-[0.985] transition-all"

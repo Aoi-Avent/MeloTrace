@@ -18,7 +18,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 apple-nav-glass pb-[max(env(safe-area-inset-bottom,0px),8px)]">
+    <nav
+      className="fixed left-0 right-0 z-40 apple-nav-glass pb-[max(env(safe-area-inset-bottom,0px),8px)]"
+      style={{ bottom: 'var(--bottom-gap, 0px)' }}
+    >
       <div className="max-w-lg mx-auto flex items-center justify-around h-14 px-2">
         {navItems.map((item) => {
           const Icon = item.icon;
