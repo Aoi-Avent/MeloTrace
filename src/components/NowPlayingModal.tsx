@@ -86,6 +86,11 @@ export const NowPlayingModal: React.FC = () => {
     setArtworkAspectRatio,
     setIsRetroPlayerOpen,
     setIsBgGuideOpen,
+    artworkSource,
+    setArtworkSource,
+    albumArtFor,
+    albumArtState,
+    retryAlbumArt,
   } = usePlayer();
 
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
@@ -107,17 +112,36 @@ export const NowPlayingModal: React.FC = () => {
   const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
   const [imgRatio, setImgRatio] = useState<number>(16 / 9);
   const [alignMode, setAlignMode] = useState(false);
+  const [ytIdx, setYtIdx] = useState(0); // 高画質→低画質の順に試すサムネイルの段階
+  const [albumFailed, setAlbumFailed] = useState(false);
+  const panRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setImgError(false);
     setImgRatio(16 / 9);
     setAlignMode(false);
+    setYtIdx(0);
+    setAlbumFailed(false);
   }, [currentTrack?.id]);
 
   // 実際に取得できた画像の縦横比から、1:1 か 16:9 かを判定
   const isSquareImage = imgRatio < 1.3;
+  const albumArt = currentTrack && artworkSource === 'album' && !albumFailed ? albumArtFor(currentTrack.id) : null;
+  const albumStatus = currentTrack ? albumArtState(currentTrack.id) : 'unknown';
+  const YT_CHAIN = currentTrack
+    ? [
+        `https://i.ytimg.com/vi/${currentTrack.id}/maxresdefault.jpg`,
+        `https://i.ytimg.com/vi/${currentTrack.id}/hq720.jpg`,
+        `https://i.ytimg.com/vi/${currentTrack.id}/sddefault.jpg`,
+        `https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`,
+        `https://i.ytimg.com/vi/${currentTrack.id}/mqdefault.jpg`,
+      ]
+    : [];
+  const artSrc = albumArt ? albumArt.url : YT_CHAIN[Math.min(ytIdx, YT_CHAIN.length - 1)];
   const artIsWide =
     artworkAspectRatio === '16:9' ? true : artworkAspectRatio === '1:1' ? false : !isSquareImage;
+  // 「1:1」を選んだまま横長画像(16:9)のとき: 切り取らず、横にスクロールして全体を見られるようにする
+  const panMode = !artIsWide && imgRatio >= 1.3;
 
   // Clean meta
   const trackMeta = React.useMemo(() => {
@@ -460,22 +484,65 @@ export const NowPlayingModal: React.FC = () => {
             }`}
           >
             {!imgError ? (
-              <img
-                src={`https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`}
-                alt={currentTrack.title}
-                referrerPolicy="no-referrer"
-                onError={() => setImgError(true)}
-                onLoad={(e) => {
+              (() => {
+                const onLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
                   const img = e.currentTarget;
+                  // YouTubeは画像が無い場合、120x90 前後の代替画像を返すので、その場合は次の画質へ
+                  if (!albumArt && img.naturalWidth <= 130 && ytIdx < YT_CHAIN.length - 1) {
+                    setYtIdx((i) => i + 1);
+                    return;
+                  }
                   if (img.naturalWidth && img.naturalHeight) setImgRatio(img.naturalWidth / img.naturalHeight);
-                }}
-                className="w-full h-full object-cover"
-              />
+                  if (panRef.current) {
+                    const el = panRef.current;
+                    el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
+                  }
+                };
+                const onError = () => {
+                  if (albumArt) setAlbumFailed(true);
+                  else if (ytIdx < YT_CHAIN.length - 1) setYtIdx((i) => i + 1);
+                  else setImgError(true);
+                };
+                return panMode ? (
+                  <div
+                    ref={panRef}
+                    className="absolute inset-0 overflow-x-auto overflow-y-hidden"
+                    style={{ touchAction: 'pan-x', scrollbarWidth: 'none' }}
+                  >
+                    <img
+                      key={artSrc}
+                      src={artSrc}
+                      alt={currentTrack.title}
+                      referrerPolicy="no-referrer"
+                      onError={onError}
+                      onLoad={onLoad}
+                      draggable={false}
+                      className="h-full w-auto max-w-none select-none"
+                    />
+                  </div>
+                ) : (
+                  <img
+                    key={artSrc}
+                    src={artSrc}
+                    alt={currentTrack.title}
+                    referrerPolicy="no-referrer"
+                    onError={onError}
+                    onLoad={onLoad}
+                    className="w-full h-full object-cover"
+                  />
+                );
+              })()
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
                 <Disc3 className="w-16 h-16 text-accent animate-spin mb-2" />
                 <p className="text-sm font-bold text-white line-clamp-2">{currentTrack.title}</p>
                 <p className="text-xs text-[#8e8e93] mt-1">{currentTrack.artist}</p>
+              </div>
+            )}
+
+            {panMode && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-black/60 text-[10px] font-semibold text-white/90 pointer-events-none">
+                ◀ 左右にスライドして全体を表示 ▶
               </div>
             )}
 
@@ -497,6 +564,21 @@ export const NowPlayingModal: React.FC = () => {
               </div>
             )}
           </div>
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+          <div className="flex items-center gap-1 p-0.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-semibold">
+            <button
+              onClick={() => setArtworkSource('album')}
+              className={`px-2.5 py-1 rounded-full transition-colors ${artworkSource === 'album' ? 'bg-white text-black' : 'text-white/70'}`}
+            >
+              ジャケット
+            </button>
+            <button
+              onClick={() => setArtworkSource('youtube')}
+              className={`px-2.5 py-1 rounded-full transition-colors ${artworkSource === 'youtube' ? 'bg-white text-black' : 'text-white/70'}`}
+            >
+              サムネ
+            </button>
+          </div>
           <div className="flex items-center gap-1 p-0.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-semibold">
             {([['auto','自動'],['1:1','1:1'],['16:9','16:9']] as const).map(([v,l]) => (
               <button
@@ -508,6 +590,18 @@ export const NowPlayingModal: React.FC = () => {
               </button>
             ))}
           </div>
+          </div>
+          {artworkSource === 'album' && !albumArt && (
+            <p className="text-[10px] text-white/60 flex items-center gap-2">
+              {albumStatus === 'unknown' ? 'ジャケットを探しています…' : 'この曲のジャケットは見つかりませんでした（サムネを表示中）'}
+              {albumStatus === 'none' && (
+                <button onClick={() => retryAlbumArt(currentTrack)} className="underline text-white/80">
+                  再検索
+                </button>
+              )}
+            </p>
+          )}
+          {albumArt && albumArt.album && <p className="text-[10px] text-white/60 truncate max-w-[300px]">{albumArt.album}</p>}
           </div>
         )}
 

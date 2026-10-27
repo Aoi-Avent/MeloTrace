@@ -28,6 +28,8 @@ export interface SyncSettings {
   artworkAspectRatio?: 'auto' | '1:1' | '16:9';
   retroPlayerSkin?: 'ipod' | 'walkman';
   themeId?: string;
+  artistFilterMode?: 'all' | 'official';
+  artworkSource?: 'album' | 'youtube';
 }
 
 export interface SyncPayload {

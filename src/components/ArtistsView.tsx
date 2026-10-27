@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Search, ArrowDownUp, Heart, Play } from 'lucide-react';
+import { Search, ArrowDownUp, Heart, Play, BadgeCheck } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { ArtistSummary, MusicTrack } from '../types/music';
 import { BackgroundPlayButton } from './BackgroundGuide';
+import { ArtistFilterToggle } from './ArtistFilterToggle';
 
 type ArtistSortKey = 'name' | 'plays' | 'first' | 'last' | 'favorites' | 'tracks';
 type Dir = 'asc' | 'desc';
@@ -20,7 +21,7 @@ const collator = new Intl.Collator('ja', { sensitivity: 'base', numeric: true })
 const STORAGE_KEY = 'melotrace_artists_sort_v1';
 
 export const ArtistsView: React.FC = () => {
-  const { musicTracks, setSelectedArtistForDetail, playTrack } = usePlayer();
+  const { musicTracks, setSelectedArtistForDetail, playTrack, artistStatus, setArtistOverride } = usePlayer();
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<ArtistSortKey>(() => {
     try {
@@ -119,6 +120,7 @@ export const ArtistsView: React.FC = () => {
         <h1 className="text-2xl font-bold text-white">アーティスト</h1>
         <p className="text-xs text-[#8e8e93] mt-0.5">{list.length} 組</p>
         <BackgroundPlayButton compact className="mt-2" />
+        <ArtistFilterToggle className="mt-2" />
       </header>
 
       <div className="relative mb-3">
@@ -168,12 +170,28 @@ export const ArtistsView: React.FC = () => {
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-semibold text-white truncate">{a.name}</h4>
+              <h4 className="text-sm font-semibold text-white truncate flex items-center gap-1">
+                {a.name}
+                {artistStatus(a.name) === 'verified' && <BadgeCheck className="w-3.5 h-3.5 text-accent shrink-0" aria-label="実在するアーティスト" />}
+              </h4>
               <p className="text-[11px] text-[#8e8e93] truncate flex items-center gap-1">
                 {sortKey === 'favorites' && <Heart className="w-3 h-3 text-accent fill-accent" />}
                 {subtitle(a)}
               </p>
             </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const verified = artistStatus(a.name) === 'verified';
+                if (window.confirm(verified ? `「${a.name}」を公式アーティストから外しますか？` : `「${a.name}」を公式アーティストとして扱いますか？`)) {
+                  setArtistOverride(a.name, verified ? 'exclude' : 'official');
+                }
+              }}
+              className="w-8 h-8 rounded-full bg-white/5 text-[#8e8e93] flex items-center justify-center shrink-0"
+              aria-label="公式かどうかを手動で変更"
+            >
+              <BadgeCheck className="w-3.5 h-3.5" />
+            </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();

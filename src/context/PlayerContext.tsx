@@ -12,6 +12,8 @@ import { extractYouTubeId, extractSmartTrackMeta, isLikelyMusic, isBgmOrClassica
 import { getLyricsForTrack } from '../utils/lyricsService';
 import { audioKeepAlive } from '../utils/audioKeepAlive';
 import { applyTheme, getSavedThemeId, THEME_STORAGE_KEY } from '../utils/theme';
+import { getStatus as getArtistStatus, needsCheck as artistNeedsCheck, verifyArtist, setOverride as setArtistOverrideStore } from '../utils/artistVerify';
+import { findAlbumArt, getCachedArt, forgetArt } from '../utils/albumArt';
 import { contentSignature, hashString, decideSync, SyncBase, SyncMode, ApplyState } from '../utils/syncMerge';
 import {
   GOOGLE_CLIENT_ID,
@@ -128,6 +130,28 @@ interface PlayerContextType {
   // Theme
   themeId: string;
   setThemeId: (id: string) => void;
+  // Artist verification / filter
+  artistFilterMode: 'all' | 'official';
+  setArtistFilterMode: (m: 'all' | 'official') => void;
+  artistStatus: (artist: string) => 'verified' | 'unverified' | 'unknown';
+  setArtistOverride: (artist: string, v: 'official' | 'exclude' | null) => void;
+  verifyProgress: { done: number; total: number };
+  // Album art
+  artworkSource: 'album' | 'youtube';
+  setArtworkSource: (s: 'album' | 'youtube') => void;
+  albumArtFor: (trackId: string) => { url: string; album: string } | null;
+  albumArtState: (trackId: string) => 'found' | 'none' | 'unknown';
+  retryAlbumArt: (track: MusicTrack) => void;
+  // Diagnostics
+  playMetrics: PlayMetric[];
+}
+
+export interface PlayMetric {
+  id: string;
+  title: string;
+  ms: number; // タップから曲が鳴り始めるまで
+  adMs: number; // そのうち広告にかかった時間
+  at: string;
 }
 
 const STORAGE_KEY_TRACKS = 'melotrace_tracks_v5';
@@ -210,12 +234,29 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return DEMO_PLAYLISTS;
   });
 
+  const [artistFilterMode, setArtistFilterModeState] = useState<'all' | 'official'>(() => {
+    try {
+      return localStorage.getItem('melotrace_artist_filter_v1') === 'official' ? 'official' : 'all';
+    } catch (e) {
+      return 'all';
+    }
+  });
+  const [verifyVersion, setVerifyVersion] = useState(0);
+  const [verifyProgress, setVerifyProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+
   // Active unbanned tracks
   const activeTracks = useMemo(() => {
-    return tracks.filter(
-      (t) => !bannedTracks.includes(t.id) && !bannedArtists.includes(t.artist)
-    );
-  }, [tracks, bannedTracks, bannedArtists]);
+    const bannedT = new Set(bannedTracks);
+    const bannedA = new Set(bannedArtists);
+    const officialOnly = artistFilterMode === 'official';
+    return tracks.filter((t) => {
+      if (bannedT.has(t.id) || bannedA.has(t.artist)) return false;
+      if (officialOnly && !t.isDemo && getArtistStatus(t.artist) !== 'verified') return false;
+      return true;
+    });
+    // verifyVersion: 判定結果が増えたら再計算する
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracks, bannedTracks, bannedArtists, artistFilterMode, verifyVersion]);
 
   // Pure music tracks (EXCLUDES Free BGM, Classical & Sleep soundscapes)
   const musicTracks = useMemo(() => {
@@ -331,6 +372,25 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [playbackHint, setPlaybackHint] = useState<string | null>(null);
   const [keepAliveEnabled, setKeepAliveEnabledState] = useState<boolean>(() => audioKeepAlive.isEnabled());
   const [themeId, setThemeIdState] = useState<string>(() => getSavedThemeId());
+  const [artworkSource, setArtworkSourceState] = useState<'album' | 'youtube'>(() => {
+    try {
+      return localStorage.getItem('melotrace_artwork_source_v1') === 'youtube' ? 'youtube' : 'album';
+    } catch (e) {
+      return 'album';
+    }
+  });
+  const [artVersion, setArtVersion] = useState(0);
+  const [playMetrics, setPlayMetrics] = useState<PlayMetric[]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem('melotrace_play_metrics_v1') || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const metricRef = useRef<{ id: string; title: string; tapAt: number; adStartedAt: number; adMs: number; done: boolean } | null>(null);
+  const lastVisChangeRef = useRef<number>(0);
+  const videoVisibleRef = useRef<boolean>(false);
   const wantPlayingRef = useRef<boolean>(false); // 「再生したい」意思（ユーザーが止めない限り true）
   const loadSeqRef = useRef<number>(0);
   const loadedAtRef = useRef<number>(0);
@@ -547,6 +607,174 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     handleTrackEndedRef.current = handleTrackEnded;
   }, [handleTrackEnded]);
 
+  // ---------- Artist verification / album art ----------
+  const setArtistFilterMode = useCallback((m: 'all' | 'official') => {
+    setArtistFilterModeState(m);
+    try {
+      localStorage.setItem('melotrace_artist_filter_v1', m);
+    } catch (e) {}
+  }, []);
+
+  const artistStatus = useCallback(
+    (artist: string): 'verified' | 'unverified' | 'unknown' => getArtistStatus(artist) ?? 'unknown',
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [verifyVersion]
+  );
+
+  const setArtistOverride = useCallback((artist: string, v: 'official' | 'exclude' | null) => {
+    setArtistOverrideStore(artist, v);
+    setVerifyVersion((n) => n + 1);
+  }, []);
+
+  // バックグラウンドで、再生回数の多いアーティストから順に「実在するか」を判定する（結果は端末に保存）
+  const verifierRunRef = useRef(0);
+  useEffect(() => {
+    if (isDemoMode || tracks.length === 0) return;
+    const runId = ++verifierRunRef.current;
+    let cancelled = false;
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const timer = setTimeout(async () => {
+      const totals = new Map<string, number>();
+      for (const t of tracks) {
+        if (t.isDemo) continue;
+        totals.set(t.artist, (totals.get(t.artist) || 0) + (t.playCount || 1));
+      }
+      const names = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+      const pending = names.filter(artistNeedsCheck);
+      let done = names.length - pending.length;
+      setVerifyProgress({ done, total: names.length });
+      let sinceUpdate = 0;
+      let failures = 0;
+      for (const name of pending) {
+        if (cancelled || runId !== verifierRunRef.current) return;
+        // 再生開始を最優先: 曲を読み込んでいる間・画面が見えていない間は待つ
+        while (!cancelled && (document.visibilityState === 'hidden' || Date.now() - loadedAtRef.current < 8000)) {
+          await sleep(2000);
+        }
+        const st = await verifyArtist(name);
+        if (st) {
+          done += 1;
+          failures = 0;
+          sinceUpdate += 1;
+          if (sinceUpdate >= 8) {
+            sinceUpdate = 0;
+            setVerifyVersion((n) => n + 1);
+            setVerifyProgress({ done, total: names.length });
+          }
+        } else {
+          failures += 1;
+          if (failures >= 5) {
+            failures = 0;
+            await sleep(60000);
+          }
+        }
+      }
+      if (!cancelled && runId === verifierRunRef.current) {
+        setVerifyVersion((n) => n + 1);
+        setVerifyProgress({ done, total: names.length });
+      }
+    }, 4000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [tracks.length, isDemoMode]);
+
+  const setArtworkSource = useCallback((src: 'album' | 'youtube') => {
+    setArtworkSourceState(src);
+    try {
+      localStorage.setItem('melotrace_artwork_source_v1', src);
+    } catch (e) {}
+  }, []);
+
+  const albumInflightRef = useRef<Set<string>>(new Set());
+  const requestAlbumArt = useCallback((track: MusicTrack | null | undefined, priority: 'high' | 'low' = 'high') => {
+    if (!track || track.isDemo) return;
+    if (getCachedArt(track.id).state !== 'unknown') return;
+    if (albumInflightRef.current.has(track.id)) return;
+    albumInflightRef.current.add(track.id);
+    findAlbumArt(track.id, track.title, track.artist, priority)
+      .then(() => setArtVersion((n) => n + 1))
+      .catch(() => {})
+      .finally(() => albumInflightRef.current.delete(track.id));
+  }, []);
+
+  const retryAlbumArt = useCallback(
+    (track: MusicTrack) => {
+      try {
+        const raw = JSON.parse(localStorage.getItem('melotrace_album_art_v1') || '{}');
+        delete raw[track.id];
+        localStorage.setItem('melotrace_album_art_v1', JSON.stringify(raw));
+      } catch (e) {}
+      // 読み込み済みキャッシュも破棄するため、モジュール側に再取得させる
+      forgetArt(track.id);
+      requestAlbumArt(track, 'high');
+    },
+    [requestAlbumArt]
+  );
+
+  const albumArtFor = useCallback(
+    (trackId: string) => {
+      const c = getCachedArt(trackId);
+      return c.state === 'found' ? c.art : null;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [artVersion]
+  );
+  const albumArtState = useCallback(
+    (trackId: string): 'found' | 'none' | 'unknown' => getCachedArt(trackId).state,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [artVersion]
+  );
+
+  // 再生中の曲と、次に流れる曲のジャケットを先読みする（再生開始を邪魔しないよう少し待つ）
+  useEffect(() => {
+    if (!currentTrack || artworkSource !== 'album') return;
+    const timer = setTimeout(() => {
+      requestAlbumArt(currentTrack, 'high');
+      for (let i = 1; i <= 2; i++) {
+        if (queue.length > 1) requestAlbumArt(queue[(queueIndex + i) % queue.length], 'low');
+      }
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [currentTrack?.id, queueIndex, artworkSource, requestAlbumArt]);
+
+  // ロック画面・コントロールセンターの画像も、ジャケットがあればそちらにする
+  useEffect(() => {
+    if (!currentTrack) return;
+    const art = artworkSource === 'album' ? albumArtFor(currentTrack.id) : null;
+    audioKeepAlive.setArtwork(art ? art.url : null);
+    if (isPlayingRef.current) audioKeepAlive.onPlay(currentTrack);
+  }, [currentTrack?.id, artworkSource, artVersion]);
+
+  useEffect(() => {
+    videoVisibleRef.current = isNowPlayingOpen && nowPlayingTab === 'video';
+  }, [isNowPlayingOpen, nowPlayingTab]);
+
+  // 再生開始までの時間を記録（診断用）
+  const recordMetricIfReady = useCallback(() => {
+    const m = metricRef.current;
+    const p = ytPlayerRef.current;
+    if (!m || m.done || !p) return;
+    let vid: string | undefined;
+    let st = -2;
+    try {
+      vid = p.getVideoData?.()?.video_id;
+      st = p.getPlayerState?.();
+    } catch (e) {}
+    if (st !== 1 || vid !== m.id || isAdPlayingRef.current) return;
+    m.done = true;
+    const ms = Math.round(performance.now() - m.tapAt);
+    const entry: PlayMetric = { id: m.id, title: m.title, ms, adMs: Math.round(m.adMs), at: new Date().toISOString() };
+    setPlayMetrics((prev) => {
+      const next = [entry, ...prev].slice(0, 20);
+      try {
+        localStorage.setItem('melotrace_play_metrics_v1', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  }, []);
+
   // ---------- Playback robustness helpers ----------
   const clearWatchdog = useCallback(() => {
     watchdogTimersRef.current.forEach((t) => clearTimeout(t));
@@ -592,6 +820,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setIsAdPlaying(true);
           setIsBuffering(true);
           setCurrentTime(0);
+          if (metricRef.current && !metricRef.current.adStartedAt) metricRef.current.adStartedAt = performance.now();
         }
         p.mute?.();
         p.setPlaybackRate?.(2);
@@ -601,6 +830,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setIsAdPlaying(false);
           setIsBuffering(false);
           p.setPlaybackRate?.(playbackRateRef.current);
+          if (metricRef.current && metricRef.current.adStartedAt) {
+            metricRef.current.adMs += performance.now() - metricRef.current.adStartedAt;
+            metricRef.current.adStartedAt = 0;
+          }
         }
         // 広告中でなければ常に音が出る状態にする（ミュートのまま残る不具合の対策）
         if (p.isMuted?.()) {
@@ -691,25 +924,35 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // 画面復帰時にUI状態を実際のプレイヤー状態へ合わせる（止まっているのに再生中表示、を防ぐ）
   useEffect(() => {
     const onVisible = () => {
+      lastVisChangeRef.current = Date.now();
       if (document.visibilityState !== 'visible') return;
       const p = ytPlayerRef.current;
       if (!p?.getPlayerState) return;
       try {
         const st = p.getPlayerState();
         const playingNow = st === 1 || st === 3;
-        setIsPlaying(playingNow);
-        if (!playingNow && wantPlayingRef.current && Date.now() - loadedAtRef.current < 20000) p.playVideo?.();
+        // 画面復帰直後に一時停止状態を検知しても、再生したい意思があるなら表示を変えずにすぐ再開する（途切れを最小化）
+        if (!playingNow && wantPlayingRef.current) {
+          p.playVideo?.();
+        } else {
+          setIsPlaying((prev) => (prev === playingNow ? prev : playingNow));
+        }
         if (!isAdPlayingRef.current && p.isMuted?.()) {
           p.unMute?.();
           p.setVolume?.(100);
         }
       } catch (e) {}
     };
+    const onHidden = () => {
+      lastVisChangeRef.current = Date.now();
+    };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('pageshow', onVisible);
+    window.addEventListener('pagehide', onHidden);
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('pageshow', onVisible);
+      window.removeEventListener('pagehide', onHidden);
     };
   }, []);
 
@@ -777,6 +1020,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 const isAd = evaluateAd();
                 applyAdState(isAd);
                 if (!isAd) {
+                  recordMetricIfReady();
                   clearWatchdog();
                   setPlaybackHint(null);
                   setIsBuffering(false);
@@ -788,7 +1032,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 }
               } else if (event.data === 2) {
                 // 読み込み直後に勝手に止められた場合（自動再生ブロック等）は、UIは再生中のまま再開を試みる
-                if (wantPlayingRef.current && Date.now() - loadedAtRef.current < 8000) {
+                const recentlyLoaded = Date.now() - loadedAtRef.current < 8000;
+                const aroundVisibilityChange = Date.now() - lastVisChangeRef.current < 3000; // アプリを離れる/戻る前後のシステム都合の一時停止
+                if (wantPlayingRef.current && (recentlyLoaded || aroundVisibilityChange)) {
                   try {
                     p?.playVideo?.();
                   } catch (e) {}
@@ -878,6 +1124,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const isAd = evaluateAd();
         applyAdState(isAd);
         if (isAd) return; // 広告中は時間を進めない
+        recordMetricIfReady();
 
         const current = p.getCurrentTime();
         const dur = p.getDuration();
@@ -899,7 +1146,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }, pollMs);
     return () => clearInterval(id);
-  }, [isPlaying, pollMs, evaluateAd, applyAdState]);
+  }, [isPlaying, pollMs, evaluateAd, applyAdState, recordMetricIfReady]);
 
   const playTrack = useCallback(
     (track: MusicTrack, newQueue?: MusicTrack[], shouldOpenModal: boolean = false) => {
@@ -937,12 +1184,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isAdPlayingRef.current = false;
       setPlaybackHint(null);
 
+      metricRef.current = { id: track.id, title: track.title, tapAt: performance.now(), adStartedAt: 0, adMs: 0, done: false };
+
       const p = ytPlayerRef.current;
       if (p?.loadVideoById) {
         try {
           p.unMute?.();
           p.setVolume?.(100);
-          p.loadVideoById({ videoId: track.id, startSeconds: 0 });
+          // 音楽が主役なので、動画画面を開いていない間は低画質で読み込み、再生開始を速くする（無視される場合もある）
+          p.loadVideoById({
+            videoId: track.id,
+            startSeconds: 0,
+            suggestedQuality: videoVisibleRef.current ? 'default' : 'small',
+          });
           p.playVideo?.();
         } catch (e) {
           console.warn('loadVideoById failed', e);
@@ -1368,8 +1622,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     new Date().toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
   const syncSettings = useMemo(
-    () => ({ strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin, themeId }),
-    [strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin, themeId]
+    () => ({ strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin, themeId, artistFilterMode, artworkSource }),
+    [strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin, themeId, artistFilterMode, artworkSource]
   );
 
   const syncSignature = useMemo(
@@ -1406,6 +1660,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (st.artworkAspectRatio) setArtworkAspectRatioState(st.artworkAspectRatio);
     if (st.retroPlayerSkin) setRetroPlayerSkin(st.retroPlayerSkin);
     if (st.themeId) setThemeIdState(st.themeId);
+    if (st.artistFilterMode) setArtistFilterModeState(st.artistFilterMode);
+    if (st.artworkSource) setArtworkSourceState(st.artworkSource);
   }, []);
 
   const ensureToken = useCallback(async () => {
@@ -1684,6 +1940,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setKeepAliveEnabled,
         themeId,
         setThemeId,
+        artistFilterMode,
+        setArtistFilterMode,
+        artistStatus,
+        setArtistOverride,
+        verifyProgress,
+        artworkSource,
+        setArtworkSource,
+        albumArtFor,
+        albumArtState,
+        retryAlbumArt,
+        playMetrics,
       }}
     >
       {children}

@@ -62,6 +62,8 @@ export function contentSignature(s: {
     s.settings.artworkAspectRatio ?? null,
     s.settings.retroPlayerSkin ?? null,
     s.settings.themeId ?? null,
+    s.settings.artistFilterMode ?? null,
+    s.settings.artworkSource ?? null,
   ]);
 }
 

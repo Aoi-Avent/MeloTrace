@@ -28,6 +28,9 @@ import { MusicTrack, ActiveTab } from '../types/music';
 import { BackgroundPlayButton } from './BackgroundGuide';
 import { AccountCard } from './AccountCard';
 import { ThemePicker } from './ThemePicker';
+import { ArtistFilterToggle } from './ArtistFilterToggle';
+import { PlayDiagnostics } from './PlayDiagnostics';
+import { unzipSync } from 'fflate';
 
 const GITHUB_ACTIONS_WORKFLOW_YAML = `name: Deploy to GitHub Pages
 
@@ -197,6 +200,34 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
 
     try {
       const fileName = file.name.toLowerCase();
+
+      // Google Takeout の ZIP をそのまま選べるようにする（展開不要）。視聴履歴のJSONだけを取り出す
+      if (fileName.endsWith('.zip')) {
+        const buf = new Uint8Array(await file.arrayBuffer());
+        const entries = unzipSync(buf, {
+          filter: (f) => /(視聴履歴|watch-history)[^/]*\.json$/i.test(f.name),
+        });
+        const names = Object.keys(entries);
+        if (names.length === 0) {
+          setErrorMessage(
+            'ZIPの中に視聴履歴（視聴履歴.json / watch-history.json）が見つかりませんでした。Takeoutで「YouTube」の「履歴」を選び、形式を「JSON」にしてエクスポートしてください。'
+          );
+          return;
+        }
+        const zipTracks: MusicTrack[] = [];
+        for (const n of names) {
+          zipTracks.push(...parseTakeoutJson(new TextDecoder('utf-8').decode(entries[n]), strictnessMode));
+          await new Promise((r) => setTimeout(r, 30));
+        }
+        if (zipTracks.length > 0) {
+          importTracks(zipTracks);
+          setImportResult(`ZIPから ${zipTracks.length.toLocaleString()}曲を取り込みました。`);
+        } else {
+          setErrorMessage('音楽データが検出されませんでした。');
+        }
+        return;
+      }
+
       const text = await file.text();
 
       // Yield after reading text
@@ -330,6 +361,16 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       </header>
 
       <ThemePicker />
+
+      <div className="mb-5 p-4 rounded-2xl apple-card border border-white/10">
+        <h3 className="text-sm font-bold text-white mb-1">表示するチャンネル</h3>
+        <p className="text-[11px] text-[#8e8e93] leading-relaxed mb-3">
+          「公式アーティストのみ」は、音楽カタログ（MusicBrainz・Apple）に実在を確認できたアーティストだけを表示します。個人チャンネルや配信者名などは対象外になります。判定は再生回数の多い順にバックグラウンドで進みます。
+        </p>
+        <ArtistFilterToggle />
+      </div>
+
+      <PlayDiagnostics />
 
       <AccountCard />
 
@@ -600,9 +641,9 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
               2
             </div>
             <div>
-              <p className="text-xs font-bold text-white">ZIP内の watch-history.json を選択</p>
+              <p className="text-xs font-bold text-white">ダウンロードしたZIPをそのまま選択（展開は不要）</p>
               <p className="text-[11px] text-[#8e8e93] mt-0.5">
-                ダウンロードされたZIPを展開し、下記のボタンからファイルを選んでください。
+                下のボタンからZIPを選ぶと、中の視聴履歴を自動で見つけて取り込みます。
               </p>
             </div>
           </div>
@@ -612,7 +653,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         <label className="block w-full">
           <input
             type="file"
-            accept=".json,.html,.mhtml,.csv,.txt"
+            accept=".zip,.json,.html,.mhtml,.csv,.txt"
             onChange={handleFileUpload}
             className="hidden"
             disabled={isLoadingFile}
@@ -620,7 +661,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
           <div className="w-full py-5 px-4 rounded-xl border border-dashed border-white/20 hover:border-accent hover:bg-white/[0.02] active:scale-[0.99] transition-all cursor-pointer flex flex-col items-center justify-center gap-2 text-center">
             <FileText className="w-7 h-7 text-[#8e8e93]" />
             <span className="text-xs font-bold text-white">
-              {isLoadingFile ? '高精度フィルタリング解析中...' : 'watch-history.json を選んで取り込む'}
+              {isLoadingFile ? '高精度フィルタリング解析中...' : 'Takeoutの ZIP（または watch-history.json）を選んで取り込む'}
             </span>
             <span className="text-[10px] text-[#8e8e93]">
               ボカロ・歌ってみた・J-POPを自動分類します

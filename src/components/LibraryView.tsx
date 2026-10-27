@@ -30,6 +30,7 @@ import {
   groupByArtist,
 } from '../utils/sorting';
 import { BackgroundPlayButton } from './BackgroundGuide';
+import { ArtistFilterToggle } from './ArtistFilterToggle';
 
 const SORT_STORAGE_KEY = 'melotrace_library_sort_v2';
 const GROUP_STORAGE_KEY = 'melotrace_library_group_artist_v1';
@@ -190,6 +191,7 @@ export const LibraryView: React.FC = () => {
             ライブラリ
           </h1>
           <BackgroundPlayButton compact className="mt-1.5" />
+          <ArtistFilterToggle className="mt-2" />
           <p className="text-xs text-[#8e8e93] mt-0.5">
             {activeTracks.length}曲の音楽コレクション
           </p>

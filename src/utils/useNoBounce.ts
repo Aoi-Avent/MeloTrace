@@ -51,6 +51,14 @@ export function initNoBounceScroll(): () => void {
       target = target.parentElement;
     }
 
+    // 横スクロールできる要素（例: 16:9サムネをスライドして見る領域）の上では何も妨げない
+    let hx: HTMLElement | null = e.target as HTMLElement | null;
+    while (hx && hx !== document.body && hx !== document.documentElement) {
+      const ox = window.getComputedStyle(hx).overflowX;
+      if ((ox === 'auto' || ox === 'scroll') && hx.scrollWidth > hx.clientWidth) return;
+      hx = hx.parentElement;
+    }
+
     // If touching on a non-scrollable area, prevent dragging the whole page
     if (!scrollableParent) {
       if (e.cancelable) {

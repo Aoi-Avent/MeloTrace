@@ -39,6 +39,12 @@ function createSilentWavUrl(): string {
 
 class AudioKeepAliveService {
   private silentAudio: HTMLAudioElement | null = null;
+  private artUrl: string | null = null;
+
+  /** アルバムジャケットがあれば、ロック画面などの画像に使う */
+  public setArtwork(url: string | null) {
+    this.artUrl = url;
+  }
 
   /** 無音ループによるバックグラウンド維持が有効か（既定: 有効） */
   public isEnabled(): boolean {
@@ -96,6 +102,7 @@ class AudioKeepAliveService {
           artist: track.artist,
           album: 'MeloTrace',
           artwork: [
+            ...(this.artUrl ? [{ src: this.artUrl, sizes: '600x600', type: 'image/jpeg' }] : []),
             { src: `https://img.youtube.com/vi/${track.id}/mqdefault.jpg`, sizes: '320x180', type: 'image/jpeg' },
             { src: `https://img.youtube.com/vi/${track.id}/hqdefault.jpg`, sizes: '480x360', type: 'image/jpeg' },
           ],

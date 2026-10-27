@@ -14,6 +14,8 @@ export const MiniPlayer: React.FC = () => {
     nextTrack,
     setIsNowPlayingOpen,
     setSelectedArtistForDetail,
+    artworkSource,
+    albumArtFor,
   } = usePlayer();
 
   const [imgError, setImgError] = useState(false);
@@ -21,6 +23,7 @@ export const MiniPlayer: React.FC = () => {
   if (!currentTrack) return null;
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const album = artworkSource === 'album' ? albumArtFor(currentTrack.id) : null;
 
   return (
     <div className="fixed bottom-[calc(3.75rem+max(env(safe-area-inset-bottom,0px),8px))] left-0 right-0 z-30 px-3">
@@ -33,7 +36,7 @@ export const MiniPlayer: React.FC = () => {
           <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-[#2c2c2e] border border-white/10 shadow-sm flex items-center justify-center">
             {!imgError ? (
               <img
-                src={`https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`}
+                src={album ? album.url : `https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`}
                 alt={currentTrack.title}
                 referrerPolicy="no-referrer"
                 onError={() => setImgError(true)}
