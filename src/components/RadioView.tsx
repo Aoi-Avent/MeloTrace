@@ -38,11 +38,11 @@ export const RadioView: React.FC = () => {
     <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto">
       {/* Top Header */}
       <div className="pt-2 pb-1 mb-2">
-        <h1 className="text-3xl font-extrabold text-white tracking-tight">
+        <h1 className="text-3xl font-extrabold text-fg tracking-tight">
           ラジオ & ミックス
         </h1>
           <BackgroundPlayButton compact className="mt-1.5" />
-        <p className="text-xs text-[#8e8e93] mt-1">
+        <p className="text-xs text-muted mt-1">
           全24種類のスマートステーションから今の気分を選ぶ
         </p>
       </div>
@@ -55,8 +55,8 @@ export const RadioView: React.FC = () => {
             onClick={() => setSelectedCategory(cat.id)}
             className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors ${
               selectedCategory === cat.id
-                ? 'bg-white text-black shadow-sm'
-                : 'apple-card text-[#8e8e93] hover:text-white'
+                ? 'bg-fg text-inverse shadow-sm'
+                : 'apple-card text-muted hover:text-fg'
             }`}
           >
             {cat.label}
@@ -70,10 +70,10 @@ export const RadioView: React.FC = () => {
           <div
             key={mix.id}
             onClick={() => handlePlayMix(mix)}
-            className="apple-card p-4 rounded-2xl cursor-pointer hover:bg-white/[0.08] active:scale-[0.98] transition-all flex flex-col justify-between min-h-[120px] group border border-white/10 relative overflow-hidden"
+            className="apple-card p-4 rounded-2xl cursor-pointer hover:bg-white/[0.08] active:scale-[0.98] transition-all flex flex-col justify-between min-h-[120px] group border border-fg/10 relative overflow-hidden"
           >
             <div className="relative z-10">
-              <span className="text-[10px] font-bold text-[#8e8e93] uppercase tracking-wider block mb-1">
+              <span className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1">
                 {mix.category === 'mood'
                   ? '気分'
                   : mix.category === 'activity'
@@ -82,10 +82,10 @@ export const RadioView: React.FC = () => {
                   ? 'ジャンル'
                   : '履歴発掘'}
               </span>
-              <h3 className="text-sm font-bold text-white group-hover:text-accent transition-colors leading-snug">
+              <h3 className="text-sm font-bold text-fg group-hover:text-accent transition-colors leading-snug">
                 {mix.title}
               </h3>
-              <p className="text-[11px] text-[#8e8e93] line-clamp-2 mt-1">
+              <p className="text-[11px] text-muted line-clamp-2 mt-1">
                 {mix.subtitle}
               </p>
             </div>
@@ -94,7 +94,7 @@ export const RadioView: React.FC = () => {
               <span className="text-[10px] text-accent font-semibold">
                 タップでシャッフル
               </span>
-              <div className="w-8 h-8 rounded-full bg-white/10 group-hover:bg-accent group-hover:text-white text-[#d1d1d6] flex items-center justify-center transition-colors shadow-sm">
+              <div className="w-8 h-8 rounded-full bg-fg/10 group-hover:bg-accent group-hover:text-on-accent text-fg-soft flex items-center justify-center transition-colors shadow-sm">
                 <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
               </div>
             </div>

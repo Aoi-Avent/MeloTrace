@@ -68,7 +68,7 @@ export const QuickRecoveryModal: React.FC = () => {
 
         <button
           onClick={() => setIsOpen(true)}
-          className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-[#8e8e93] hover:text-white border border-white/10 active:scale-90 transition-all shadow-sm"
+          className="p-1.5 rounded-full bg-fg/10 hover:bg-fg/20 text-muted hover:text-fg border border-fg/10 active:scale-90 transition-all shadow-sm"
           title="アプリの復旧・再読み込みメニュー"
           aria-label="復旧メニュー"
         >
@@ -78,7 +78,7 @@ export const QuickRecoveryModal: React.FC = () => {
 
       {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-2xl bg-white/95 text-black text-xs font-bold shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-2xl bg-fg/95 text-black text-xs font-bold shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
           <Check className="w-4 h-4 text-[#30d158] stroke-[3]" />
           <span>{toastMsg}</span>
         </div>
@@ -87,20 +87,20 @@ export const QuickRecoveryModal: React.FC = () => {
       {/* Recovery Modal Sheet */}
       {isOpen && (
         <div className="fixed inset-0 z-[90] bg-black/80 flex items-end sm:items-center justify-center p-3 animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-3xl apple-card p-5 shadow-2xl border border-white/15 flex flex-col gap-3">
-            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+          <div className="w-full max-w-sm rounded-3xl apple-card p-5 shadow-2xl border border-fg/15 flex flex-col gap-3">
+            <div className="flex items-center justify-between pb-2 border-b border-fg/10">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent">
                   <RotateCcw className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">クイック診断・アプリ復旧</h3>
-                  <p className="text-[10px] text-[#8e8e93]">ページを再読込せずに不具合を解消</p>
+                  <h3 className="text-sm font-bold text-fg">クイック診断・アプリ復旧</h3>
+                  <p className="text-[10px] text-muted">ページを再読込せずに不具合を解消</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white active:scale-90"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-fg active:scale-90"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -113,14 +113,14 @@ export const QuickRecoveryModal: React.FC = () => {
                   handleResync();
                   setIsOpen(false);
                 }}
-                className="w-full p-3 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-98 text-left flex items-center gap-3 transition-all border border-white/5"
+                className="w-full p-3 rounded-2xl bg-fg/5 hover:bg-fg/10 active:scale-98 text-left flex items-center gap-3 transition-all border border-fg/5"
               >
                 <div className="w-9 h-9 rounded-xl bg-accent/20 text-accent flex items-center justify-center shrink-0">
                   <RotateCcw className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white">プレイヤーを再同期 (音が出ない時)</p>
-                  <p className="text-[10px] text-[#8e8e93] truncate">
+                  <p className="text-xs font-bold text-fg">プレイヤーを再同期 (音が出ない時)</p>
+                  <p className="text-[10px] text-muted truncate">
                     現在の秒数から動画と音声を再接続・復旧します
                   </p>
                 </div>
@@ -132,14 +132,14 @@ export const QuickRecoveryModal: React.FC = () => {
                   handleUnmute();
                   setIsOpen(false);
                 }}
-                className="w-full p-3 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-98 text-left flex items-center gap-3 transition-all border border-white/5"
+                className="w-full p-3 rounded-2xl bg-fg/5 hover:bg-fg/10 active:scale-98 text-left flex items-center gap-3 transition-all border border-fg/5"
               >
                 <div className="w-9 h-9 rounded-xl bg-[#30d158]/20 text-[#30d158] flex items-center justify-center shrink-0">
                   <Volume2 className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white">音声を強制有効化 (ミュート解除)</p>
-                  <p className="text-[10px] text-[#8e8e93] truncate">
+                  <p className="text-xs font-bold text-fg">音声を強制有効化 (ミュート解除)</p>
+                  <p className="text-[10px] text-muted truncate">
                     ブラウザの自動再生制限で音が消えた際に解除
                   </p>
                 </div>
@@ -148,21 +148,21 @@ export const QuickRecoveryModal: React.FC = () => {
               {/* Option 3: Verify Storage Data */}
               <button
                 onClick={handleVerifyDB}
-                className="w-full p-3 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-98 text-left flex items-center gap-3 transition-all border border-white/5"
+                className="w-full p-3 rounded-2xl bg-fg/5 hover:bg-fg/10 active:scale-98 text-left flex items-center gap-3 transition-all border border-fg/5"
               >
-                <div className="w-9 h-9 rounded-xl bg-[#0a84ff]/20 text-[#0a84ff] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-accent/20 text-accent flex items-center justify-center shrink-0">
                   <Database className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white">ライブラリ保存状況を確認</p>
-                  <p className="text-[10px] text-[#8e8e93] truncate">
+                  <p className="text-xs font-bold text-fg">ライブラリ保存状況を確認</p>
+                  <p className="text-[10px] text-muted truncate">
                     IndexedDB保管曲数: {dbCount !== null ? `${dbCount.toLocaleString()}曲` : `${activeTracks.length.toLocaleString()}曲 (クリックで再検証)`}
                   </p>
                 </div>
               </button>
             </div>
 
-            <p className="text-[10px] text-[#8e8e93] text-center pt-1 border-t border-white/5">
+            <p className="text-[10px] text-muted text-center pt-1 border-t border-fg/5">
               ※車 (CarPlay) やバックグラウンド再生時も本ボタンで即座に音声復旧できます
             </p>
           </div>

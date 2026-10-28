@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { PlayerProvider, usePlayer } from './context/PlayerContext';
 import { BottomNav } from './components/BottomNav';
 import { MiniPlayer } from './components/MiniPlayer';
@@ -18,11 +18,14 @@ import { RetroPlayer } from './components/RetroPlayer';
 import { BackgroundGuideModal } from './components/BackgroundGuide';
 import { PlaybackToast } from './components/PlaybackToast';
 import { Mascot } from './components/Mascot';
+import { AdTip } from './components/AdTip';
 import { DesktopModeBanner } from './components/DesktopModeBanner';
 import { SearchView } from './components/SearchView';
 import { ArtistDetailModal } from './components/ArtistDetailModal';
 import { QuickRecoveryModal } from './components/QuickRecoveryModal';
 import { ActiveTab } from './types/music';
+import { scrollMem } from './utils/viewMemory';
+import { initStatusBarScrollTop } from './utils/scrollTop';
 import { initNoBounceScroll } from './utils/useNoBounce';
 
 interface ErrorBoundaryProps {
@@ -59,17 +62,17 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-full w-full bg-[#000000] text-white flex flex-col items-center justify-center p-6 text-center select-none font-sans">
+        <div className="h-full w-full bg-app text-fg flex flex-col items-center justify-center p-6 text-center select-none font-sans">
           <div className="w-16 h-16 rounded-2xl bg-accent/15 border border-accent/30 flex items-center justify-center mb-4">
             <span className="text-2xl text-accent"></span>
           </div>
           <h1 className="text-lg font-bold mb-2">プレイヤーを安全に復旧中</h1>
-          <p className="text-xs text-[#8e8e93] max-w-xs mb-6 leading-relaxed">
+          <p className="text-xs text-muted max-w-xs mb-6 leading-relaxed">
             再生セッションの一時的な不整合を検出しました。下のボタンを押すと直前の再生状態から安全に再開できます。
           </p>
           <button
             onClick={this.handleReset}
-            className="py-3 px-6 rounded-full bg-accent text-white text-xs font-semibold hover:bg-accent-hover active:scale-95 transition-all shadow-lg shadow-accent/20"
+            className="py-3 px-6 rounded-full bg-accent text-on-accent text-xs font-semibold hover:bg-accent-hover active:scale-95 transition-all shadow-lg shadow-accent/20"
           >
             プレイヤーを再開する
           </button>
@@ -119,16 +122,49 @@ const AppContent: React.FC = () => {
     return cleanup;
   }, []);
 
+  // ステータスバー(時刻・電池表示)のタップで先頭へ
+  useEffect(() => initStatusBarScrollTop(), []);
+
+  // どのタブでも、離れる前のスクロール位置を覚えて、戻ったら復元する
+  const mainRef = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const el = mainRef.current?.querySelector('.ios-scroll-container') as HTMLElement | null;
+    if (!el) return;
+    const key = activeTab;
+    const target = scrollMem.get(key) ?? 0;
+    el.scrollTop = target;
+    // 一覧が遅れて描画される場合に備えて、数フレームのあいだ位置を合わせ直す
+    let tries = 0;
+    let raf = 0;
+    const settle = () => {
+      if (Math.abs(el.scrollTop - target) > 2 && tries++ < 12) {
+        el.scrollTop = target;
+        raf = requestAnimationFrame(settle);
+      }
+    };
+    if (target > 0) raf = requestAnimationFrame(settle);
+    let userScrolled = false;
+    const onScroll = () => {
+      if (tries >= 12 || Math.abs(el.scrollTop - target) <= 2) userScrolled = true;
+      if (userScrolled || target === 0) scrollMem.set(key, el.scrollTop);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener('scroll', onScroll);
+    };
+  }, [activeTab]);
+
   const isVideoVisible = isNowPlayingOpen && nowPlayingTab === 'video';
 
   return (
-    <div className="h-full w-full bg-[#000000] text-[#f5f5f7] flex flex-col font-sans select-none overflow-hidden relative">
+    <div className="h-full w-full bg-app text-fg flex flex-col font-sans select-none overflow-hidden relative">
       {/* THE OFFICIAL PERSISTENT YOUTUBE PLAYER CONTAINER */}
       {/* Kept mounted in DOM to prevent audio interruption; hidden off-screen when not viewing video */}
       <div
         className={
           isVideoVisible
-            ? 'fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-sm aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-black'
+            ? 'fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-sm aspect-video rounded-2xl overflow-hidden shadow-2xl border border-fg/20 bg-black'
             : 'fixed bottom-[calc(1rem+var(--bottom-gap,0px))] right-4 z-0 w-[320px] h-[200px] pointer-events-none opacity-[0.001]'
         }
         id="yt-player-wrapper"
@@ -137,7 +173,8 @@ const AppContent: React.FC = () => {
       </div>
 
       {/* Main View Area with zero-bounce scrolling */}
-      <main className="flex-1 w-full max-w-lg mx-auto h-full overflow-hidden relative">
+      <main ref={mainRef} className="flex-1 w-full max-w-lg mx-auto h-full overflow-hidden relative">
+        <div key={activeTab} className="h-full mt-tab-in">
         {activeTab === 'home' && <HomeView setActiveTab={setActiveTab} />}
         {activeTab === 'radio' && <RadioView />}
         {activeTab === 'library' && <LibraryView />}
@@ -147,6 +184,7 @@ const AppContent: React.FC = () => {
         )}
         {activeTab === 'analytics' && <AnalyticsView />}
         {activeTab === 'import' && <DataImportView setActiveTab={setActiveTab} />}
+        </div>
       </main>
 
       {/* Global Quick Recovery & Audio Resync */}
@@ -159,6 +197,7 @@ const AppContent: React.FC = () => {
       <NowPlayingModal />
 
       <Mascot />
+      <AdTip onOpen={() => setActiveTab('import')} />
       <PlaybackToast />
       <DesktopModeBanner />
       <RetroPlayer />

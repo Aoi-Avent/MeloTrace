@@ -91,14 +91,14 @@ export const AnalyticsView: React.FC = () => {
       <header className="pt-2 pb-1 mb-3">
         <div className="flex items-center gap-1.5 mb-1">
           <span className="w-2 h-2 rounded-full bg-accent" />
-          <span className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wider">
+          <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">
             {isDemoMode ? 'サンプル視聴履歴' : 'あなたの視聴履歴データ'}
           </span>
         </div>
-        <h1 className="text-3xl font-extrabold text-white tracking-tight">
+        <h1 className="text-3xl font-extrabold text-fg tracking-tight">
           履歴カルテ
         </h1>
-        <p className="text-xs text-[#8e8e93] mt-0.5">
+        <p className="text-xs text-muted mt-0.5">
           YouTubeの履歴データから嗜好傾向をプロファイリング
         </p>
       </header>
@@ -106,33 +106,33 @@ export const AnalyticsView: React.FC = () => {
       {/* Summary KPI Cards (Apple Music Replay style) */}
       <div className="grid grid-cols-3 gap-2.5 mb-6">
         <div className="p-3.5 rounded-2xl apple-card text-center">
-          <span className="text-[11px] font-medium text-[#8e8e93] block mb-0.5">総楽曲数</span>
-          <span className="text-2xl font-black text-white tabular-nums">{tracks.length}</span>
-          <span className="text-[10px] text-[#8e8e93] block">曲</span>
+          <span className="text-[11px] font-medium text-muted block mb-0.5">総楽曲数</span>
+          <span className="text-2xl font-black text-fg tabular-nums">{tracks.length}</span>
+          <span className="text-[10px] text-muted block">曲</span>
         </div>
 
         <div className="p-3.5 rounded-2xl apple-card text-center">
-          <span className="text-[11px] font-medium text-[#8e8e93] block mb-0.5">累計再生</span>
+          <span className="text-[11px] font-medium text-muted block mb-0.5">累計再生</span>
           <span className="text-2xl font-black text-accent tabular-nums">{totalPlays}</span>
-          <span className="text-[10px] text-[#8e8e93] block">回</span>
+          <span className="text-[10px] text-muted block">回</span>
         </div>
 
         <div className="p-3.5 rounded-2xl apple-card text-center">
-          <span className="text-[11px] font-medium text-[#8e8e93] block mb-0.5">総再生時間</span>
-          <span className="text-2xl font-black text-white tabular-nums">{estimatedHours}</span>
-          <span className="text-[10px] text-[#8e8e93] block">時間</span>
+          <span className="text-[11px] font-medium text-muted block mb-0.5">総再生時間</span>
+          <span className="text-2xl font-black text-fg tabular-nums">{estimatedHours}</span>
+          <span className="text-[10px] text-muted block">時間</span>
         </div>
       </div>
 
       {/* Genre Breakdown */}
       <section className="mb-7 p-4 rounded-2xl apple-card">
-        <h3 className="text-xs font-bold text-[#8e8e93] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-accent" />
           <span>ジャンル構成比率</span>
         </h3>
 
         {/* Stacked Percentage Bar */}
-        <div className="w-full h-3 rounded-full overflow-hidden flex bg-white/10 mb-3">
+        <div className="w-full h-3 rounded-full overflow-hidden flex bg-fg/10 mb-3">
           {genreStats.map((item) => (
             <div
               key={item.genre}
@@ -155,9 +155,9 @@ export const AnalyticsView: React.FC = () => {
                   className="w-2.5 h-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: genreColors[item.genre] || '#8e8e93' }}
                 />
-                <span className="text-white truncate font-medium">{item.genre}</span>
+                <span className="text-fg truncate font-medium">{item.genre}</span>
               </div>
-              <span className="font-bold text-white tabular-nums shrink-0">{item.percent}%</span>
+              <span className="font-bold text-fg tabular-nums shrink-0">{item.percent}%</span>
             </div>
           ))}
         </div>
@@ -165,7 +165,7 @@ export const AnalyticsView: React.FC = () => {
 
       {/* Top 10 Repeated Songs */}
       <section className="mb-7">
-        <h3 className="text-lg font-bold text-white tracking-tight mb-3 flex items-center gap-1.5">
+        <h3 className="text-lg font-bold text-fg tracking-tight mb-3 flex items-center gap-1.5">
           <Trophy className="w-4 h-4 text-[#ffd60a]" />
           <span>最多リピート TOP 10</span>
         </h3>
@@ -181,11 +181,11 @@ export const AnalyticsView: React.FC = () => {
                 {idx === 0 ? (
                   <span className="text-[#ffd60a] text-sm font-extrabold">1</span>
                 ) : idx === 1 ? (
-                  <span className="text-[#d1d1d6] text-sm font-extrabold">2</span>
+                  <span className="text-fg-soft text-sm font-extrabold">2</span>
                 ) : idx === 2 ? (
                   <span className="text-[#ff9f0a] text-sm font-extrabold">3</span>
                 ) : (
-                  <span className="text-[#8e8e93]">{idx + 1}</span>
+                  <span className="text-muted">{idx + 1}</span>
                 )}
               </div>
 
@@ -193,22 +193,22 @@ export const AnalyticsView: React.FC = () => {
                 src={`https://img.youtube.com/vi/${track.id}/mqdefault.jpg`}
                 alt={track.title}
                 referrerPolicy="no-referrer"
-                className="w-10 h-10 rounded-lg object-cover shrink-0 bg-[#2c2c2e]"
+                className="w-10 h-10 rounded-lg object-cover mt-thumb shrink-0 bg-surface-2"
                 loading="lazy"
               />
 
               <div className="flex-1 min-w-0">
-                <h4 className="text-xs font-semibold text-white truncate leading-tight">
+                <h4 className="text-xs font-semibold text-fg truncate leading-tight">
                   {track.title}
                 </h4>
-                <p className="text-[11px] text-[#8e8e93] truncate mt-0.5">
+                <p className="text-[11px] text-muted truncate mt-0.5">
                   {track.artist}
                 </p>
               </div>
 
               <div className="text-right shrink-0">
                 <span className="text-xs font-bold text-accent tabular-nums">{track.playCount}</span>
-                <span className="text-[10px] text-[#8e8e93] block">回</span>
+                <span className="text-[10px] text-muted block">回</span>
               </div>
             </div>
           ))}
@@ -217,7 +217,7 @@ export const AnalyticsView: React.FC = () => {
 
       {/* Top Artists Leaderboard */}
       <section className="mb-7">
-        <h3 className="text-lg font-bold text-white tracking-tight mb-3 flex items-center gap-1.5">
+        <h3 className="text-lg font-bold text-fg tracking-tight mb-3 flex items-center gap-1.5">
           <Headphones className="w-4 h-4 text-[#bf5af2]" />
           <span>最愛アーティスト TOP 5</span>
         </h3>
@@ -229,15 +229,15 @@ export const AnalyticsView: React.FC = () => {
               <div key={artist.artist} className="p-3 rounded-xl apple-card">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-[#8e8e93] tabular-nums">#{idx + 1}</span>
-                    <h4 className="text-xs font-bold text-white">{artist.artist}</h4>
+                    <span className="text-xs font-bold text-muted tabular-nums">#{idx + 1}</span>
+                    <h4 className="text-xs font-bold text-fg">{artist.artist}</h4>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs font-bold text-white tabular-nums">{artist.count}回</span>
-                    <span className="text-[10px] text-[#8e8e93] ml-1.5 tabular-nums">({artistShare}%)</span>
+                    <span className="text-xs font-bold text-fg tabular-nums">{artist.count}回</span>
+                    <span className="text-[10px] text-muted ml-1.5 tabular-nums">({artistShare}%)</span>
                   </div>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div className="w-full h-1.5 rounded-full bg-fg/10 overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-accent to-[#bf5af2] rounded-full"
                     style={{ width: `${Math.min(100, artistShare * 2)}%` }}
@@ -253,12 +253,12 @@ export const AnalyticsView: React.FC = () => {
       {rediscoverTracks.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-1.5">
+            <h3 className="text-lg font-bold text-fg tracking-tight flex items-center gap-1.5">
               <Compass className="w-4 h-4 text-[#30d158]" />
               <span>ご無沙汰の名曲</span>
             </h3>
           </div>
-          <p className="text-[11px] text-[#8e8e93] mb-3 leading-relaxed">
+          <p className="text-[11px] text-muted mb-3 leading-relaxed">
             以前よく聴いていたのに、最近再生されていないお気に入りの曲です。
           </p>
 
@@ -273,14 +273,14 @@ export const AnalyticsView: React.FC = () => {
                   src={`https://img.youtube.com/vi/${track.id}/mqdefault.jpg`}
                   alt={track.title}
                   referrerPolicy="no-referrer"
-                  className="w-10 h-10 rounded-lg object-cover shrink-0 bg-[#2c2c2e]"
+                  className="w-10 h-10 rounded-lg object-cover mt-thumb shrink-0 bg-surface-2"
                   loading="lazy"
                 />
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-xs font-semibold text-white truncate leading-tight">
+                  <h4 className="text-xs font-semibold text-fg truncate leading-tight">
                     {track.title}
                   </h4>
-                  <p className="text-[11px] text-[#8e8e93] truncate mt-0.5">
+                  <p className="text-[11px] text-muted truncate mt-0.5">
                     {track.artist} · 過去{track.playCount}回
                   </p>
                 </div>

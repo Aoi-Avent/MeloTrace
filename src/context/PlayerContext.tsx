@@ -14,6 +14,7 @@ import { audioKeepAlive } from '../utils/audioKeepAlive';
 import { applyTheme, getSavedThemeId, THEME_STORAGE_KEY } from '../utils/theme';
 import { getStatus as getArtistStatus, needsCheck as artistNeedsCheck, verifyArtist, setOverride as setArtistOverrideStore } from '../utils/artistVerify';
 import { findAlbumArt, getCachedArt, forgetArt } from '../utils/albumArt';
+import { primeChime, startWaitChime } from '../utils/waitChime';
 import { contentSignature, hashString, decideSync, SyncBase, SyncMode, ApplyState } from '../utils/syncMerge';
 import {
   GOOGLE_CLIENT_ID,
@@ -144,6 +145,7 @@ interface PlayerContextType {
   retryAlbumArt: (track: MusicTrack) => void;
   // Diagnostics
   playMetrics: PlayMetric[];
+  playWait: { phase: 'idle' | 'loading' | 'slow' | 'ad' | 'retry'; ms: number };
   getPlaybackLog: () => string[];
   clearPlaybackLog: () => void;
   restartPlayer: () => void;
@@ -421,6 +423,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const isPlayingRef = useRef<boolean>(false);
   const tickCountRef = useRef<number>(0);
   const playbackLogRef = useRef<string[]>([]);
+  const [isWaiting, setIsWaiting] = useState(false);
+  const [playWait, setPlayWait] = useState<{ phase: 'idle' | 'loading' | 'slow' | 'ad' | 'retry'; ms: number }>({ phase: 'idle', ms: 0 });
+  const waitStartRef = useRef<number>(0);
+  const retryingRef = useRef<boolean>(false);
+  const chimeStopRef = useRef<(() => void) | null>(null);
   const lastTimeRef = useRef<number>(0);
   const lastAdvanceAtRef = useRef<number>(0);
   const stallCountRef = useRef<number>(0);
@@ -809,6 +816,35 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   // ---------- Playback robustness helpers ----------
+  // 待ち時間の見える化: 「読み込み中 → 少し時間がかかっている → 広告中 → 再接続中」を判定して、画面とキャラクターに伝える
+  const beginWaiting = useCallback(() => {
+    waitStartRef.current = performance.now();
+    retryingRef.current = false;
+    setPlayWait({ phase: 'loading', ms: 0 }); // 押した瞬間から「読み込み中」を見せる
+    setIsWaiting(true);
+  }, []);
+  const endWaiting = useCallback(() => {
+    setIsWaiting(false);
+  }, []);
+  useEffect(() => {
+    if (!isWaiting) {
+      setPlayWait((w) => (w.phase === 'idle' ? w : { phase: 'idle', ms: 0 }));
+      if (chimeStopRef.current) {
+        chimeStopRef.current();
+        chimeStopRef.current = null;
+      }
+      return;
+    }
+    const id = setInterval(() => {
+      const ms = performance.now() - waitStartRef.current;
+      const phase = isAdPlayingRef.current ? 'ad' : retryingRef.current ? 'retry' : ms > 4500 ? 'slow' : 'loading';
+      setPlayWait((w) => (w.phase === phase && Math.abs(w.ms - ms) < 900 ? w : { phase, ms }));
+      // 少し待たされているときだけ、やさしい音を鳴らす
+      if (ms > 2200 && !chimeStopRef.current) chimeStopRef.current = startWaitChime();
+    }, 400);
+    return () => clearInterval(id);
+  }, [isWaiting]);
+
   // ---------- 再生の詳細ログ（不具合調査用・端末内のみ） ----------
   const logEvent = useCallback((msg: string) => {
     const d = new Date();
@@ -937,6 +973,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setIsBuffering(true);
           setCurrentTime(0);
           if (metricRef.current && !metricRef.current.adStartedAt) metricRef.current.adStartedAt = performance.now();
+          logEvent('広告を検知');
         }
         p.mute?.();
         p.setPlaybackRate?.(2);
@@ -950,6 +987,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             metricRef.current.adMs += performance.now() - metricRef.current.adStartedAt;
             metricRef.current.adStartedAt = 0;
           }
+          logEvent('広告が終了');
         }
         // 広告中でなければ常に音が出る状態にする（ミュートのまま残る不具合の対策）
         if (p.isMuted?.()) {
@@ -958,7 +996,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
     } catch (e) {}
-  }, []);
+  }, [logEvent]);
 
   /** 再生開始の見張り: 一定時間たっても再生が始まらなければ段階的に再試行し、最終的にはユーザーに▶操作を促す */
   const startWatchdog = useCallback(
@@ -994,20 +1032,24 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 p.playVideo?.();
               } else if (action === 'reload') {
                 if (st === 3) return; // 通信中は待つ
+                retryingRef.current = true;
                 p.loadVideoById({ videoId: id, startSeconds: 0 });
                 p.playVideo?.();
               } else if (action === 'muted') {
                 if (st === 3) return;
+                retryingRef.current = true;
                 // 自動再生が拒否されている場合の最終手段: ミュートで開始（ミュート再生は許可されやすい）→再生後に音を戻す
                 mutedStartRef.current = true;
                 p.mute?.();
                 p.loadVideoById({ videoId: id, startSeconds: 0 });
                 p.playVideo?.();
               } else if (action === 'recreate') {
+                retryingRef.current = true;
                 recreatePlayer(id, 0);
               } else {
                 setIsPlaying(false);
                 setIsBuffering(false);
+                setIsWaiting(false);
                 setPlaybackHint('再生を開始できませんでした。▶ボタンを押してください。', `https://www.youtube.com/watch?v=${id}`);
               }
             } catch (e) {}
@@ -1020,6 +1062,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const resumePlayback = useCallback(() => {
     logEvent('再生/再開 操作');
+    primeChime();
     wantPlayingRef.current = true;
     setPlaybackHint(null);
     const p = ytPlayerRef.current;
@@ -1035,6 +1078,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const pausePlayback = useCallback(() => {
     logEvent('一時停止 操作');
+    setIsWaiting(false);
     wantPlayingRef.current = false;
     clearWatchdog();
     try {
@@ -1151,7 +1195,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 html5ErrorCountRef.current = 0;
                 const isAd = evaluateAd();
                 applyAdState(isAd);
+                try {
+                  logEvent(`状態1: 動画=${p?.getVideoData?.()?.video_id ?? '?'} 曲=${currentTrackRef.current?.id ?? '?'} 広告=${isAd}`);
+                } catch (e) {}
                 if (!isAd) {
+                  endWaiting();
                   if (currentTrackRef.current) markUnplayable(currentTrackRef.current.id, false);
                   if (mutedStartRef.current) {
                     // ミュートで始めた場合: 音を戻す。ブラウザに止められたら、タップを促す
@@ -1226,6 +1274,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             onError: (err: any) => {
               const errCode = err?.data;
               logEvent(`エラー ${errCode}`);
+              setIsWaiting(false);
               console.warn('YouTube Player Error Code:', errCode);
               clearWatchdog();
               setIsBuffering(false);
@@ -1387,6 +1436,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       metricRef.current = { id: track.id, title: track.title, tapAt: performance.now(), adStartedAt: 0, adMs: 0, done: false };
       logEvent(`再生要求 ${track.id} 「${track.title.slice(0, 24)}」`);
+      primeChime();
+      beginWaiting();
       lastTimeRef.current = 0;
       lastAdvanceAtRef.current = 0;
       stallCountRef.current = 0;
@@ -1427,7 +1478,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         })
       );
     },
-    [queue, musicTracks, bgmTracks, activeTracks, startWatchdog, logEvent]
+    [queue, musicTracks, bgmTracks, activeTracks, startWatchdog, logEvent, beginWaiting]
   );
 
   const playBgmStation = useCallback(() => {
@@ -2153,6 +2204,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         albumArtState,
         retryAlbumArt,
         playMetrics,
+        playWait,
         getPlaybackLog,
         clearPlaybackLog,
         restartPlayer,

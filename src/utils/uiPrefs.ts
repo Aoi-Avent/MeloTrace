@@ -3,10 +3,10 @@ import { useSyncExternalStore } from 'react';
 /** 端末内に保存する小さな表示設定（マスコットのオンオフなど）。変更は全画面に即反映される */
 const listeners = new Set<() => void>();
 
-export function getPref<T extends string>(key: string, fallback: T): T {
+export function getPref(key: string, fallback: string): string {
   try {
     const v = localStorage.getItem(key);
-    return (v as T) ?? fallback;
+    return v ?? fallback;
   } catch (e) {
     return fallback;
   }

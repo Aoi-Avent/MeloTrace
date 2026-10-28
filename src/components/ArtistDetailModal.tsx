@@ -91,19 +91,19 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
           <img
             src={representativeThumbnail}
             alt=""
-            className="w-full h-full object-cover scale-150 blur-3xl opacity-20"
+            className="w-full h-full object-cover mt-focus scale-150 blur-3xl opacity-20"
           />
         )}
       </div>
 
-      <div className="relative z-10 w-full max-w-lg mx-auto bg-[#1c1c1e]/95 border-t border-white/10 rounded-t-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden pb-[max(env(safe-area-inset-bottom,0px),12px)]">
+      <div className="relative z-10 w-full max-w-lg mx-auto bg-surface/95 border-t border-fg/10 rounded-t-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden pb-[max(env(safe-area-inset-bottom,0px),12px)]">
         {/* Top Handle / Close Bar */}
-        <div className="flex items-center justify-between px-5 pt-3 pb-2 border-b border-white/5">
+        <div className="flex items-center justify-between px-5 pt-3 pb-2 border-b border-fg/5">
           <div className="w-8" />
-          <div className="w-10 h-1 bg-white/20 rounded-full" />
+          <div className="w-10 h-1 bg-fg/20 rounded-full" />
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-[#8e8e93] hover:text-white transition-colors"
+            className="w-8 h-8 rounded-full bg-fg/10 flex items-center justify-center text-muted hover:text-fg transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -113,16 +113,16 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
         <div className="overflow-y-auto px-5 pt-4 pb-12 flex-1 ios-scroll-container">
           {/* Artist Header Profile */}
           <div className="flex flex-col items-center text-center mb-6">
-            <div className="w-28 h-28 rounded-full overflow-hidden shadow-2xl border-2 border-white/15 bg-black mb-3.5 relative">
+            <div className="w-28 h-28 rounded-full overflow-hidden shadow-2xl border-2 border-fg/15 bg-surface-2 mb-3.5 relative">
               {representativeThumbnail ? (
                 <img
                   src={representativeThumbnail}
                   alt={artistName}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover mt-focus"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e]">
-                  <Music2 className="w-10 h-10 text-white/40" />
+                <div className="w-full h-full flex items-center justify-center bg-surface-2">
+                  <Music2 className="w-10 h-10 text-fg/40" />
                 </div>
               )}
             </div>
@@ -132,11 +132,11 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
               <span>ライブラリ収録アーティスト</span>
             </div>
 
-            <h2 className="text-2xl font-bold text-white tracking-tight px-4 break-words">
+            <h2 className="text-2xl font-bold text-fg tracking-tight px-4 break-words">
               {artistName}
             </h2>
 
-            <p className="text-xs text-[#8e8e93] mt-1">
+            <p className="text-xs text-muted mt-1">
               {artistTracks.length}曲 収録 • 合計 {totalPlays} 回再生
             </p>
 
@@ -144,7 +144,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
             <div className="flex items-center gap-3 w-full max-w-xs mt-4">
               <button
                 onClick={() => handlePlayAll(false)}
-                className="flex-1 py-3 px-4 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-accent/25 active:scale-95 transition-all"
+                className="flex-1 py-3 px-4 rounded-xl bg-accent hover:bg-accent-hover text-on-accent text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-accent/25 active:scale-95 transition-all"
               >
                 <Play className="w-4 h-4 fill-white" />
                 <span>すべて再生</span>
@@ -152,7 +152,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
 
               <button
                 onClick={() => handlePlayAll(true)}
-                className="flex-1 py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold flex items-center justify-center gap-2 active:scale-95 transition-all"
+                className="flex-1 py-3 px-4 rounded-xl bg-fg/10 hover:bg-fg/15 text-fg text-xs font-semibold flex items-center justify-center gap-2 active:scale-95 transition-all"
               >
                 <Shuffle className="w-4 h-4" />
                 <span>シャッフル</span>
@@ -163,32 +163,32 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
           {/* Song List */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-white tracking-tight">
+              <h3 className="text-sm font-bold text-fg tracking-tight">
                 このアーティストの曲 ({artistTracks.length})
               </h3>
-              <span className="text-[11px] text-[#8e8e93]">再生回数順</span>
+              <span className="text-[11px] text-muted">再生回数順</span>
             </div>
 
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-fg/5">
               {sortedTracks.map((track, idx) => {
                 const isCurrent = currentTrack?.id === track.id;
                 return (
                   <div
                     key={track.id}
                     onClick={() => playTrack(track, sortedTracks)}
-                    className={`flex items-center justify-between py-2.5 px-2 rounded-xl cursor-pointer active:bg-white/10 transition-colors ${
-                      isCurrent ? 'bg-white/10' : 'hover:bg-white/5'
+                    className={`flex items-center justify-between py-2.5 px-2 rounded-xl cursor-pointer active:bg-fg/10 transition-colors ${
+                      isCurrent ? 'bg-fg/10' : 'hover:bg-fg/5'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <span className="text-xs font-semibold text-[#8e8e93] w-4 text-center tabular-nums">
+                      <span className="text-xs font-semibold text-muted w-4 text-center tabular-nums">
                         {idx + 1}
                       </span>
-                      <div className="w-11 h-11 rounded-lg overflow-hidden shrink-0 bg-black relative border border-white/10">
+                      <div className="w-11 h-11 rounded-lg overflow-hidden shrink-0 bg-surface-2 relative border border-fg/10">
                         <img
                           src={`https://img.youtube.com/vi/${track.id}/mqdefault.jpg`}
                           alt=""
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover mt-focus"
                         />
                         {isCurrent && isPlaying && (
                           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
@@ -199,12 +199,12 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
                       <div className="min-w-0">
                         <p
                           className={`text-xs font-semibold truncate ${
-                            isCurrent ? 'text-accent' : 'text-white'
+                            isCurrent ? 'text-accent' : 'text-fg'
                           }`}
                         >
                           {track.title}
                         </p>
-                        <p className="text-[11px] text-[#8e8e93] truncate mt-0.5">
+                        <p className="text-[11px] text-muted truncate mt-0.5">
                           再生 {track.playCount}回 • {formatDuration(track.duration)}
                         </p>
                       </div>
@@ -215,7 +215,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
                         e.stopPropagation();
                         toggleFavorite(track.id);
                       }}
-                      className="p-2 text-[#8e8e93] hover:text-accent transition-colors shrink-0"
+                      className="p-2 text-muted hover:text-accent transition-colors shrink-0"
                     >
                       <Heart
                         className={`w-4 h-4 ${
@@ -230,15 +230,15 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
           </div>
 
           {/* Artist Management Actions */}
-          <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+          <div className="flex flex-col gap-2 pt-2 border-t border-fg/10">
             {topTrack?.id && (
               <a
                 href={`https://www.youtube.com/results?search_query=${encodeURIComponent(artistName)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                className="w-full py-2.5 px-3 rounded-xl bg-fg/5 hover:bg-fg/10 text-fg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
               >
-                <ExternalLink className="w-3.5 h-3.5 text-[#8e8e93]" />
+                <ExternalLink className="w-3.5 h-3.5 text-muted" />
                 <span>YouTubeで「{artistName}」を検索・開く</span>
               </a>
             )}

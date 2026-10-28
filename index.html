@@ -24,11 +24,14 @@
     <script>
       (function(){
         try {
-          var T = {blue:['#0a84ff','#409cff'],teal:['#30b0c7','#5ac8d8'],green:['#30d158','#5ee07a'],purple:['#af52de','#c27ae8'],pink:['#ff2d95','#ff5cae'],red:['#fa2d48','#ff3b56'],orange:['#ff9f0a','#ffb340']};
-          var id = localStorage.getItem('melotrace_theme_v1') || 'blue';
-          var c = T[id] || T.blue;
-          document.documentElement.style.setProperty('--accent', c[0]);
-          document.documentElement.style.setProperty('--accent-hover', c[1]);
+          var raw = localStorage.getItem('melotrace_theme_vars_v1');
+          if (!raw) return;
+          var d = JSON.parse(raw), r = document.documentElement;
+          for (var k in d.vars) r.style.setProperty(k, d.vars[k]);
+          r.style.colorScheme = d.mode;
+          r.setAttribute('data-theme-mode', d.mode);
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', d.solid);
         } catch (e) {}
       })();
     </script>

@@ -21,7 +21,7 @@ const LINES: Record<string, string[]> = {
 const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
 
 export const Mascot: React.FC = () => {
-  const { currentTrack, isPlaying, isBuffering, isAdPlaying, playbackHint, isNowPlayingOpen, isRetroPlayerOpen } = usePlayer();
+  const { currentTrack, isPlaying, isBuffering, isAdPlaying, playbackHint, isNowPlayingOpen, isRetroPlayerOpen, playWait } = usePlayer();
   const [enabled] = usePref(PREF_MASCOT, 'on');
   const [talk] = usePref(PREF_MASCOT_TALK, 'on');
 
@@ -33,7 +33,7 @@ export const Mascot: React.FC = () => {
   const [sleeping, setSleeping] = useState(false);
   const reduceMotion = useRef(typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
 
-  const mood: Mood = playbackHint ? 'worry' : isAdPlaying ? 'ad' : isBuffering && isPlaying ? 'loading' : isPlaying ? 'groove' : sleeping ? 'sleep' : 'idle';
+  const mood: Mood = playbackHint || playWait.phase === 'slow' || playWait.phase === 'retry' ? 'worry' : isAdPlaying ? 'ad' : isBuffering && isPlaying ? 'loading' : isPlaying ? 'groove' : sleeping ? 'sleep' : 'idle';
 
   const say = (text: string) => {
     if (talk !== 'on') return;
@@ -73,6 +73,14 @@ export const Mascot: React.FC = () => {
     lastFav.current = currentTrack.isFavorite;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTrack?.isFavorite, currentTrack?.id]);
+
+  // 待ち時間が長いときは、こっそり気づかいのひとこと
+  useEffect(() => {
+    if (playWait.phase === 'slow') say('ごめんね、読み込みに時間がかかってるよ…');
+    else if (playWait.phase === 'ad') say('いまは広告だよ、もうすぐ曲が始まるよ');
+    else if (playWait.phase === 'retry') say('もういっかい、つないでみるね');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playWait.phase]);
 
   // 気分が変わったとき、たまにひとこと
   useEffect(() => {
