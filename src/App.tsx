@@ -19,6 +19,7 @@ import { BackgroundGuideModal } from './components/BackgroundGuide';
 import { PlaybackToast } from './components/PlaybackToast';
 import { Mascot } from './components/Mascot';
 import { AdTip } from './components/AdTip';
+import { usePref } from './utils/uiPrefs';
 import { DesktopModeBanner } from './components/DesktopModeBanner';
 import { SearchView } from './components/SearchView';
 import { ArtistDetailModal } from './components/ArtistDetailModal';
@@ -122,6 +123,8 @@ const AppContent: React.FC = () => {
     return cleanup;
   }, []);
 
+  const [videoMode] = usePref('melotrace_video_mode_v1', 'normal');
+
   // ステータスバー(時刻・電池表示)のタップで先頭へ
   useEffect(() => initStatusBarScrollTop(), []);
 
@@ -165,7 +168,7 @@ const AppContent: React.FC = () => {
         className={
           isVideoVisible
             ? 'fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-sm aspect-video rounded-2xl overflow-hidden shadow-2xl border border-fg/20 bg-black'
-            : 'fixed bottom-[calc(1rem+var(--bottom-gap,0px))] right-4 z-0 w-[320px] h-[200px] pointer-events-none opacity-[0.001]'
+            : `fixed bottom-[calc(1rem+var(--bottom-gap,0px))] right-4 z-0 w-[320px] h-[200px] pointer-events-none opacity-[0.001] ${videoMode === 'quiet' ? 'invisible' : ''}`
         }
         id="yt-player-wrapper"
       >

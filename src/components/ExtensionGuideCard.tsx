@@ -42,8 +42,11 @@ export const ExtensionGuideCard: React.FC = () => {
             <li>入れたものを「オン」にして、完了をタップ</li>
             <li>もう一度「ぁあ」をタップし、その拡張を選んで「このWebサイトで常に許可」</li>
           </ol>
+          <p className="text-[11px] text-muted mb-2">
+            開発者の検証では、<b className="text-fg">Adblock Plus だけ</b>を有効にした状態が、広告がいちばん減り、動作も安定しました（そのぶん、曲の再生開始まで10秒前後かかる曲が多めです）。
+          </p>
           <div className="flex flex-wrap gap-2 mb-3">
-            {['AdGuard', '1Blocker', 'Adblock Plus'].map((n) => (
+            {['Adblock Plus', 'AdGuard', '1Blocker'].map((n) => (
               <a
                 key={n}
                 href={appStoreSearch(n)}

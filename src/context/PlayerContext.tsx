@@ -15,6 +15,7 @@ import { applyTheme, getSavedThemeId, THEME_STORAGE_KEY } from '../utils/theme';
 import { getStatus as getArtistStatus, needsCheck as artistNeedsCheck, verifyArtist, setOverride as setArtistOverrideStore } from '../utils/artistVerify';
 import { findAlbumArt, getCachedArt, forgetArt } from '../utils/albumArt';
 import { primeChime, startWaitChime } from '../utils/waitChime';
+import { getPref } from '../utils/uiPrefs';
 import { contentSignature, hashString, decideSync, SyncBase, SyncMode, ApplyState } from '../utils/syncMerge';
 import {
   GOOGLE_CLIENT_ID,
@@ -146,6 +147,7 @@ interface PlayerContextType {
   // Diagnostics
   playMetrics: PlayMetric[];
   playWait: { phase: 'idle' | 'loading' | 'slow' | 'ad' | 'retry'; ms: number };
+  retryPlayback: () => void;
   getPlaybackLog: () => string[];
   clearPlaybackLog: () => void;
   restartPlayer: () => void;
@@ -159,6 +161,9 @@ export interface PlayMetric {
   ms: number; // タップから曲が鳴り始めるまで
   adMs: number; // そのうち広告にかかった時間
   at: string;
+  auto?: boolean; // 前の曲が終わって自動で次へ進んだか（false = 手動でタップ）
+  hidden?: boolean; // 要求した時点で画面が非表示（ロック中・ホーム画面）だったか
+  mode?: string; // 映像モード（normal / quiet）
 }
 
 /** 再生できないと分かっている曲を飛ばして、次（または前）の曲の位置を選ぶ */
@@ -410,7 +415,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return [];
     }
   });
-  const metricRef = useRef<{ id: string; title: string; tapAt: number; adStartedAt: number; adMs: number; done: boolean } | null>(null);
+  const metricRef = useRef<{ id: string; title: string; tapAt: number; adStartedAt: number; adMs: number; done: boolean; auto: boolean; hidden: boolean; mode: string } | null>(null);
+  const autoAdvanceRef = useRef<boolean>(false);
   const lastVisChangeRef = useRef<number>(0);
   const videoVisibleRef = useRef<boolean>(false);
   const wantPlayingRef = useRef<boolean>(false); // 「再生したい」意思（ユーザーが止めない限り true）
@@ -639,6 +645,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setQueueIndex(nextIdx);
     const nextT = queue[nextIdx];
     if (nextT) {
+      autoAdvanceRef.current = true; // 自動で次の曲へ（計測用）
       playTrack(nextT, queue, false);
     }
   }, [repeatMode, queue, queueIndex, isShuffle]);
@@ -805,7 +812,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (st !== 1 || vid !== m.id || isAdPlayingRef.current) return;
     m.done = true;
     const ms = Math.round(performance.now() - m.tapAt);
-    const entry: PlayMetric = { id: m.id, title: m.title, ms, adMs: Math.round(m.adMs), at: new Date().toISOString() };
+    const entry: PlayMetric = { id: m.id, title: m.title, ms, adMs: Math.round(m.adMs), at: new Date().toISOString(), auto: m.auto, hidden: m.hidden, mode: m.mode };
     setPlayMetrics((prev) => {
       const next = [entry, ...prev].slice(0, 20);
       try {
@@ -1003,12 +1010,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     (id: string) => {
       clearWatchdog();
       const mySeq = loadSeqRef.current;
+      // ログの分析: プレーヤーを自動で作り直すと、新しい映像要素は「ユーザーのタップ」が無いと再生を始められず、
+      // かえって止まる。そのため自動での作り直しはやめ、長引く場合は早めにタップを促す。
       const steps: Array<[number, 'kick' | 'reload' | 'muted' | 'recreate' | 'giveup']> = [
         [1800, 'kick'],
         [4800, 'reload'],
         [8500, 'muted'],
-        [13000, 'recreate'],
-        [19000, 'giveup'],
+        [12000, 'giveup'],
       ];
       steps.forEach(([ms, action]) => {
         watchdogTimersRef.current.push(
@@ -1050,7 +1058,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 setIsPlaying(false);
                 setIsBuffering(false);
                 setIsWaiting(false);
-                setPlaybackHint('再生を開始できませんでした。▶ボタンを押してください。', `https://www.youtube.com/watch?v=${id}`);
+                setPlaybackHint('読み込みが長引いています。▶をタップすると、すぐ始まることがあります。', `https://www.youtube.com/watch?v=${id}`);
               }
             } catch (e) {}
           }, ms)
@@ -1375,7 +1383,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 p.playVideo?.();
               } else if (tr) {
                 stallCountRef.current = 0;
-                recreatePlayer(tr.id, current);
+                setIsPlaying(false);
+                setPlaybackHint('再生が止まりました。▶をタップすると続きから再開します。', `https://www.youtube.com/watch?v=${tr.id}`);
               }
             } catch (e) {}
           }
@@ -1434,8 +1443,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isAdPlayingRef.current = false;
       setPlaybackHint(null);
 
-      metricRef.current = { id: track.id, title: track.title, tapAt: performance.now(), adStartedAt: 0, adMs: 0, done: false };
-      logEvent(`再生要求 ${track.id} 「${track.title.slice(0, 24)}」`);
+      const isAuto = autoAdvanceRef.current;
+      autoAdvanceRef.current = false;
+      const videoMode = getPref('melotrace_video_mode_v1', 'normal');
+      metricRef.current = {
+        id: track.id, title: track.title, tapAt: performance.now(), adStartedAt: 0, adMs: 0, done: false,
+        auto: isAuto, hidden: document.visibilityState === 'hidden', mode: videoMode,
+      };
+      logEvent(`再生要求 ${track.id} 「${track.title.slice(0, 24)}」 [${metricRef.current.auto ? '自動' : '手動'}・画面${metricRef.current.hidden ? '非表示' : '表示'}・映像${metricRef.current.mode === 'quiet' ? '抑制' : '標準'}]`);
       primeChime();
       beginWaiting();
       lastTimeRef.current = 0;
@@ -1453,7 +1468,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           p.loadVideoById({
             videoId: track.id,
             startSeconds: 0,
-            suggestedQuality: videoVisibleRef.current ? 'default' : 'small',
+            suggestedQuality: videoVisibleRef.current ? 'default' : getPref('melotrace_video_mode_v1', 'normal') === 'quiet' ? 'tiny' : 'small',
           });
           p.playVideo?.();
         } catch (e) {
@@ -2205,6 +2220,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         retryAlbumArt,
         playMetrics,
         playWait,
+        retryPlayback: resumePlayback,
         getPlaybackLog,
         clearPlaybackLog,
         restartPlayer,

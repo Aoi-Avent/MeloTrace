@@ -6,14 +6,14 @@ type Phase = 'loading' | 'slow' | 'ad' | 'retry';
 
 const META: Record<Phase, { icon: React.ReactNode; label: string; hint: string }> = {
   loading: { icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />, label: '読み込み中', hint: '曲を読み込んでいます' },
-  slow: { icon: <Hourglass className="w-3.5 h-3.5 od-wiggle" />, label: 'もう少し', hint: '読み込みに時間がかかっています。ごめんね' },
+  slow: { icon: <Hourglass className="w-3.5 h-3.5 od-wiggle" />, label: 'タップで再開', hint: '読み込みが長引いています。タップすると、すぐ始まることがあります' },
   ad: { icon: <Megaphone className="w-3.5 h-3.5" />, label: '広告中', hint: '広告の間は音を消しています。まもなく曲が始まります' },
   retry: { icon: <RefreshCw className="w-3.5 h-3.5 animate-spin" />, label: '再接続中', hint: 'つなぎ直しています' },
 };
 
 /** 待ち時間の理由を、文章ではなく小さなアイコン＋ひとことで伝える。長押しやタップで説明が出る */
 export const WaitIndicator: React.FC<{ compact?: boolean; className?: string }> = ({ compact, className = '' }) => {
-  const { playWait } = usePlayer();
+  const { playWait, retryPlayback } = usePlayer();
   const [showHint, setShowHint] = React.useState(false);
   if (playWait.phase === 'idle') return null;
   const m = META[playWait.phase];
@@ -22,6 +22,11 @@ export const WaitIndicator: React.FC<{ compact?: boolean; className?: string }> 
       type="button"
       onClick={(e) => {
         e.stopPropagation();
+        // 長引いているときは、タップ（ユーザー操作）で再生を再開する。ここで始まることが多い
+        if (playWait.phase === 'slow') {
+          retryPlayback();
+          return;
+        }
         setShowHint((v) => !v);
         setTimeout(() => setShowHint(false), 3500);
       }}

@@ -25,6 +25,7 @@ export const AppearanceCard: React.FC = () => {
   const [anim] = usePref(PREF_ANIM, 'on');
   const [statusTop] = usePref(PREF_STATUSBAR, 'on');
   const [chime, setChime] = useState<boolean>(isChimeEnabled());
+  const [videoMode, setVideoMode] = usePref('melotrace_video_mode_v1', 'normal');
 
   return (
     <>
@@ -60,6 +61,23 @@ export const AppearanceCard: React.FC = () => {
           <p className="text-[10px] text-muted mt-0.5 leading-relaxed">読み込みが長引くときだけ、小さく鳴ります（マナーモードでは鳴りません）。</p>
         </div>
         <Switch on={chime} onChange={(v) => { setChime(v); setChimeEnabled(v); }} label="待ち時間のやさしい音" />
+      </div>
+      <div className="mb-3">
+        <p className="text-xs font-semibold text-fg">映像の描画（実験）</p>
+        <p className="text-[10px] text-muted mt-0.5 leading-relaxed mb-2">
+          「抑える」にすると、動画の映像を画面に描かず、低画質で読み込みます。再生開始が速くなるかを試すための実験機能です（効果は端末や状況で変わります）。遅くなる・止まるときは「標準」に戻してください。
+        </p>
+        <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-fg/10 text-[11px] font-semibold">
+          {([['normal', '標準'], ['quiet', '抑える（実験）']] as const).map(([v, l]) => (
+            <button
+              key={v}
+              onClick={() => setVideoMode(v)}
+              className={`px-3.5 py-1.5 rounded-full transition-colors ${videoMode === v ? 'bg-fg text-inverse' : 'text-fg/70'}`}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">

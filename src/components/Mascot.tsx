@@ -76,7 +76,7 @@ export const Mascot: React.FC = () => {
 
   // 待ち時間が長いときは、こっそり気づかいのひとこと
   useEffect(() => {
-    if (playWait.phase === 'slow') say('ごめんね、読み込みに時間がかかってるよ…');
+    if (playWait.phase === 'slow') say('ごめんね、長引いてるよ…点滅マークをタップしてみて');
     else if (playWait.phase === 'ad') say('いまは広告だよ、もうすぐ曲が始まるよ');
     else if (playWait.phase === 'retry') say('もういっかい、つないでみるね');
     // eslint-disable-next-line react-hooks/exhaustive-deps
