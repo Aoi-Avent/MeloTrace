@@ -45,14 +45,13 @@ import {
 } from '../utils/lyricsService';
 import { LyricLine } from '../types/music';
 import { WaitIndicator } from './WaitIndicator';
+import { usePlayerTime } from '../utils/timeStore';
 
 export const NowPlayingModal: React.FC = () => {
   const {
     currentTrack,
     isPlaying,
     isBuffering,
-    currentTime,
-    duration,
     playbackRate,
     queue,
     repeatMode,
@@ -93,6 +92,7 @@ export const NowPlayingModal: React.FC = () => {
     albumArtState,
     retryAlbumArt,
   } = usePlayer();
+  const { currentTime, duration } = usePlayerTime();
 
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTimerMenu, setShowTimerMenu] = useState(false);
@@ -300,7 +300,7 @@ export const NowPlayingModal: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 bg-[#000000] flex flex-col justify-between overflow-hidden animate-in fade-in slide-in-from-bottom duration-300 mt-sheet">
       {/* Apple Music Fluid Live Blurred Ambient Background */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none mt-ambient">
         <div
           className="w-full h-full opacity-35 bg-cover bg-center"
           style={{
@@ -543,7 +543,7 @@ export const NowPlayingModal: React.FC = () => {
               })()
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-                <Disc3 className="w-16 h-16 text-accent animate-spin mb-2" />
+                <Disc3 className={`w-16 h-16 text-accent mb-2 ${isBuffering ? "animate-spin" : ""}`} />
                 <p className="text-sm font-bold text-white line-clamp-2">{currentTrack.title}</p>
                 <p className="text-xs text-[#8e8e93] mt-1">{currentTrack.artist}</p>
               </div>

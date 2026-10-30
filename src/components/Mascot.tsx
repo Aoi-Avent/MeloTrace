@@ -24,6 +24,8 @@ export const Mascot: React.FC = () => {
   const { currentTrack, isPlaying, isBuffering, isAdPlaying, playbackHint, isNowPlayingOpen, isRetroPlayerOpen, playWait } = usePlayer();
   const [enabled] = usePref(PREF_MASCOT, 'on');
   const [talk] = usePref(PREF_MASCOT_TALK, 'on');
+  const [power] = usePref('melotrace_power_v1', 'off');
+  const [blink, setBlink] = useState(false);
 
   const [x, setX] = useState(18); // 画面幅に対する位置(%)
   const [facing, setFacing] = useState<1 | -1>(1);
@@ -118,7 +120,24 @@ export const Mascot: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, talk, mood]);
 
-  if (enabled !== 'on' || isNowPlayingOpen || isRetroPlayerOpen) return null;
+  // まばたきは、ずっと動かし続けず、数秒おきに一瞬だけ（常時アニメーションは電池を食うため）
+  useEffect(() => {
+    if (enabled !== 'on' || power === 'on') return;
+    let t1: ReturnType<typeof setTimeout>;
+    let t2: ReturnType<typeof setTimeout>;
+    const loop = () => {
+      setBlink(true);
+      t2 = setTimeout(() => setBlink(false), 140);
+      t1 = setTimeout(loop, 4500 + Math.random() * 3500);
+    };
+    t1 = setTimeout(loop, 3000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [enabled, power]);
+
+  if (enabled !== 'on' || power === 'on' || isNowPlayingOpen || isRetroPlayerOpen) return null;
 
   // ミニプレイヤーが出ているときは、その上に立つ
   const lift = currentTrack ? '4.6rem' : '0rem';
@@ -131,7 +150,8 @@ export const Mascot: React.FC = () => {
     >
       <div
         className="relative w-[72px]"
-        style={{ left: `${x}%`, transition: reduceMotion.current ? 'none' : 'left 6s ease-in-out', transform: 'translateX(-50%)' }}
+        // 歩く動きは left ではなく transform で行う（left はレイアウト計算が毎フレーム発生して重い）
+        style={{ transform: `translateX(calc(${x}vw - 36px))`, transition: reduceMotion.current ? 'none' : 'transform 6s ease-in-out', willChange: 'transform' }}
       >
         {/* ふきだし */}
         {bubble && (
@@ -153,9 +173,9 @@ export const Mascot: React.FC = () => {
         {mood === 'sleep' && <div className="od-float absolute -top-3 right-0 text-xs font-bold text-white/70">z z</div>}
 
         <div key={hopKey} className={hopKey > 0 ? 'od-hop' : ''}>
-          <div className={mood === 'groove' ? 'od-bob' : 'od-breathe'}>
+          <div className={mood === 'groove' && isPlaying && document.visibilityState === 'visible' ? 'od-bob' : ''}>
             <div className={mood === 'loading' ? 'od-spin' : ''} style={{ transform: `scaleX(${facing})` }}>
-              <OtodamaSvg mood={mood} />
+              <OtodamaSvg mood={mood} blink={blink} />
             </div>
           </div>
         </div>
@@ -164,14 +184,14 @@ export const Mascot: React.FC = () => {
   );
 };
 
-const OtodamaSvg: React.FC<{ mood: Mood }> = ({ mood }) => {
+const OtodamaSvg: React.FC<{ mood: Mood; blink: boolean }> = ({ mood, blink }) => {
   const sleepy = mood === 'sleep';
   const ad = mood === 'ad';
   const worry = mood === 'worry';
   return (
     <svg viewBox="0 0 80 84" width="72" height="76" style={{ overflow: 'visible' }}>
       {/* 音符のアンテナ */}
-      <g className="od-note">
+      <g className={mood === 'groove' ? 'od-note' : ''}>
         <path d="M44 14 C44 8 46 4 50 2" stroke="#d9c6a8" strokeWidth="2.4" fill="none" strokeLinecap="round" />
         <ellipse cx="42" cy="15" rx="4.4" ry="3.4" fill="var(--accent)" transform="rotate(-20 42 15)" />
         <path d="M46 14 L46 2 Q52 3 53 8" stroke="var(--accent)" strokeWidth="2.2" fill="none" strokeLinecap="round" />
@@ -201,7 +221,7 @@ const OtodamaSvg: React.FC<{ mood: Mood }> = ({ mood }) => {
           <path d="M48 44 L58 46 M48 48 L58 46" />
         </g>
       ) : (
-        <g className="od-eye">
+        <g style={{ transform: blink ? 'scaleY(0.1)' : 'none', transformBox: 'fill-box', transformOrigin: 'center', transition: 'transform 0.08s' }}>
           <ellipse cx="26" cy="44" rx="6" ry="7" fill="#3b2f22" />
           <circle cx="28" cy="41.5" r="2.2" fill="#fff" />
           <ellipse cx="53" cy="46" rx="3.6" ry="4.2" fill="#3b2f22" />
