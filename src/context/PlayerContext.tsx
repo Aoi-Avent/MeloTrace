@@ -11,6 +11,7 @@ import { DEMO_TRACKS, DEMO_PLAYLISTS } from '../data/demoData';
 import { extractYouTubeId, extractSmartTrackMeta, isLikelyMusic, isBgmOrClassicalTrack } from '../utils/parser';
 import { getLyricsForTrack } from '../utils/lyricsService';
 import { audioKeepAlive } from '../utils/audioKeepAlive';
+import { setupNativeBackgroundResume } from '../utils/nativeBackground';
 import { applyTheme, getSavedThemeId, THEME_STORAGE_KEY } from '../utils/theme';
 import { getStatus as getArtistStatus, needsCheck as artistNeedsCheck, verifyArtist, setOverride as setArtistOverrideStore } from '../utils/artistVerify';
 import { findAlbumArt, getCachedArt, forgetArt } from '../utils/albumArt';
@@ -1136,6 +1137,35 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       window.removeEventListener('pagehide', onHidden);
     };
   }, []);
+
+  // iOSアプリ: アプリを離れた直後にシステム都合で止められたら、自動で再生を再開する
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    let disposed = false;
+    setupNativeBackgroundResume({
+      isWanted: () => wantPlayingRef.current,
+      isPlaying: () => {
+        const st = ytPlayerRef.current?.getPlayerState?.();
+        return st === 1 || st === 3;
+      },
+      resume: () => {
+        try {
+          ytPlayerRef.current?.playVideo?.();
+        } catch (e) {}
+      },
+      onStateChange: () => {
+        lastVisChangeRef.current = Date.now();
+      },
+      log: logEvent,
+    }).then((c) => {
+      if (disposed) c();
+      else cleanup = c;
+    });
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [logEvent]);
 
   // Initialize YouTube IFrame Player
   useEffect(() => {
