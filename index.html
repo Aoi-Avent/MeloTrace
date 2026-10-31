@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>MeloTrace - YouTube音楽履歴プレイヤー</title>
+    <meta name="description" content="視聴履歴を有効活用して自分専用の音楽ライブラリと分析を楽しむ、スマホ最適化ミュージックプレイヤー" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MeloTrace" />
+    <meta property="og:title" content="MeloTrace - YouTube音楽履歴プレイヤー" />
+    <meta property="og:description" content="視聴履歴を有効活用して自分専用の音楽ライブラリと分析を楽しむ、スマホ最適化ミュージックプレイヤー" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://www.youtube.com" crossorigin>
+    <link rel="preconnect" href="https://www.youtube-nocookie.com" crossorigin>
+    <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
+    <link rel="preconnect" href="https://s.ytimg.com" crossorigin>
+    <link rel="dns-prefetch" href="https://googleads.g.doubleclick.net">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+      (function(){
+        try {
+          var raw = localStorage.getItem('melotrace_theme_vars_v1');
+          if (!raw) return;
+          var d = JSON.parse(raw), r = document.documentElement;
+          for (var k in d.vars) r.style.setProperty(k, d.vars[k]);
+          r.style.colorScheme = d.mode;
+          r.setAttribute('data-theme-mode', d.mode);
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', d.solid);
+        } catch (e) {}
+      })();
+    </script>
+    <script>
+      (function(){
+        // Ensure trailing slash for GitHub Pages project sites so relative assets resolve properly
+        if (window.location.pathname.indexOf('.') === -1 && !window.location.pathname.endsWith('/')) {
+          window.history.replaceState(null, '', window.location.pathname + '/' + window.location.search + window.location.hash);
+        }
+        // Handle redirect from 404.html
+        var redirect = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+        if (redirect && redirect !== location.href) {
+          history.replaceState(null, null, redirect);
+        }
+      })();
+    </script>
+  </head>
+  <body class="bg-[#090a0f] text-slate-100 antialiased selection:bg-rose-500 selection:text-white overscroll-none">
+    <div id="root"></div>
+    <script async src="https://www.youtube.com/iframe_api"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

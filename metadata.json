@@ -1,0 +1,6 @@
+{
+  "name": "MeloTrace - YouTube音楽履歴プレイヤー",
+  "description": "視聴履歴を有効活用して自分専用の音楽ライブラリと分析を楽しむ、スマホ最適化ミュージックプレイヤー",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

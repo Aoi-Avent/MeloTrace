@@ -1,0 +1,62 @@
+# ==============================================================
+# MeloTrace - GitHub Pages 自動デプロイ ワークフロー
+# ==============================================================
+# 【設置手順】
+# ブラウザの仕様により、フォルダ丸ごとドラッグ＆ドロップすると「.github」フォルダが自動除外されます。
+# そのため、GitHubのリポジトリ画面で以下のように手動作成してください：
+# 1. GitHubのリポジトリ画面で「Add file」→「Create new file」をクリック
+# 2. ファイル名入力欄に「 .github/workflows/deploy.yml 」と入力（スラッシュを入力すると自動でフォルダ化されます）
+# 3. 本ファイルの内容をすべて貼り付けて「Commit changes」をクリック
+# 4. 「Settings」タブ →「Pages」を開き、「Source」を「GitHub Actions」に変更
+# ==============================================================
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build project
+        run: npm run build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
