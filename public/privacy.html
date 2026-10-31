@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>プライバシーポリシー | MeloTrace</title>
+  <meta name="robots" content="index,follow" />
+  <style>
+    :root{color-scheme:light dark;--bg:#fff;--fg:#1d1d1f;--sub:#6e6e73;--line:#d2d2d7;--acc:#fa2d48}
+    @media (prefers-color-scheme:dark){:root{--bg:#000;--fg:#f5f5f7;--sub:#a1a1a6;--line:#38383a}}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif;line-height:1.8;font-size:15px}
+    main{max-width:720px;margin:0 auto;padding:32px 20px 80px}
+    h1{font-size:26px;margin:0 0 4px}
+    h2{font-size:18px;margin:32px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+    p,li{margin:6px 0}
+    ul,ol{padding-left:1.4em}
+    .meta{color:var(--sub);font-size:13px}
+    a{color:var(--acc)}
+    nav{margin-bottom:24px;font-size:14px}
+    code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="./">← MeloTrace に戻る</a> ｜ <a href="privacy.html">プライバシーポリシー</a> ｜ <a href="terms.html">利用規約</a></nav>
+
+  <h1>プライバシーポリシー</h1>
+  <p class="meta">制定日・最終更新日：2026年10月26日</p>
+
+  <p>MeloTrace（メロトレース。以下「本アプリ」）の運営者（GitHub：aoi-avent。以下「運営者」）は、本アプリにおける利用者の情報の取り扱いについて、以下のとおり定めます。</p>
+
+  <h2>1. 基本方針</h2>
+  <p>本アプリは、利用者のブラウザ上だけで動作するWebアプリです。運営者は利用者のデータを保存するサーバーを持っておらず、<b>視聴履歴や再生データを運営者が受け取ることはありません。</b></p>
+
+  <h2>2. 端末内（ブラウザ内）に保存される情報</h2>
+  <p>次の情報は、利用者の端末のブラウザ（IndexedDB・localStorage）にのみ保存され、運営者には送信されません。</p>
+  <ul>
+    <li>利用者が取り込んだYouTube視聴履歴ファイル（JSON・MHTML等）から抽出した、曲名・アーティスト（チャンネル）名・動画ID・再生回数・最終再生日時などの情報</li>
+    <li>スキ（お気に入り）、非表示（Ban）設定、プレイリスト、歌詞の表示設定・調整値、並び替え設定などのアプリ設定</li>
+    <li>取得した歌詞のキャッシュ</li>
+  </ul>
+  <p>取り込みファイルの解析は、すべて利用者のブラウザ内で行われ、外部にアップロードされません。ブラウザのデータを消去すると、これらの情報も削除されます。</p>
+
+  <h2>3. Googleアカウントでのログインとクラウド保存（任意）</h2>
+  <p>ログインは任意です。ログインしなくても、本アプリの基本機能はすべて利用できます。ログインした場合、次のとおり取り扱います。</p>
+  <h3 style="font-size:15px;margin:16px 0 4px">3-1. 取得するGoogleアカウント情報</h3>
+  <ul>
+    <li>メールアドレス、表示名、プロフィール画像（アカウントの表示のためだけに使用し、利用者の端末内に保存します。運営者には送信されません）</li>
+  </ul>
+  <h3 style="font-size:15px;margin:16px 0 4px">3-2. Googleドライブへの保存</h3>
+  <ul>
+    <li>利用するアクセス権限：<code>drive.appdata</code>（本アプリ専用の非表示データ領域）。利用者のドライブ内の他のファイルには、アクセスできません。</li>
+    <li>保存する内容：スキした曲の動画ID、非表示にした曲・アーティスト、プレイリスト、アプリ設定を記録した設定ファイル（<code>melotrace-sync.json</code>）1つのみ。</li>
+    <li>保存しないもの：視聴履歴の全件、再生回数、動画・音声そのもの。</li>
+    <li>このデータは利用者自身のGoogleドライブに保存されるものであり、運営者がアクセス・閲覧・収集することはできません。</li>
+  </ul>
+  <h3 style="font-size:15px;margin:16px 0 4px">3-3. アクセストークンの扱い</h3>
+  <p>Googleから発行されるアクセストークンは、ブラウザのメモリ上にのみ保持し、端末に保存しません（有効期限は約1時間です）。</p>
+  <h3 style="font-size:15px;margin:16px 0 4px">3-4. Google APIサービスのユーザーデータに関するポリシー</h3>
+  <p>本アプリによるGoogle APIから受け取った情報の使用および他アプリへの転送は、<a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API サービスのユーザーデータに関するポリシー</a>（限定的な使用の要件を含む）に準拠します。取得した情報は、本アプリの機能（設定の保存と呼び出し、アカウント表示）の提供以外には使用せず、第三者への提供、広告への利用、販売は行いません。</p>
+
+  <h2>4. 外部サービスとの通信</h2>
+  <p>本アプリは、機能の提供のために次の外部サービスと通信します。通信時に、利用者のIPアドレス等の情報が各サービス提供者に送信される場合があります。</p>
+  <ul>
+    <li><b>YouTube（Google）</b>：動画の再生（埋め込みプレーヤー）、サムネイル画像の表示、字幕情報の取得。再生時に広告が表示される場合があります。</li>
+    <li><b>LRCLIB（lrclib.net）</b>：歌詞の検索。曲名とアーティスト名を送信します。</li>
+    <li><b>Google Identity Services / Google ドライブAPI</b>：ログインとクラウド保存（ログイン時のみ）。</li>
+    <li><b>GitHub Pages</b>：本アプリの配信。</li>
+  </ul>
+  <p>「YouTubeの視聴履歴にも残す」設定をオンにした場合、動画プレーヤーをyoutube.comのドメインで読み込みます。この場合のCookieや視聴履歴の扱いは、GoogleおよびYouTubeのプライバシーポリシー・利用規約に従います。</p>
+  <p>各サービスにおける情報の取り扱いは、それぞれの提供者のプライバシーポリシーをご確認ください。</p>
+
+  <h2>5. 情報の削除・アクセス権限の取り消し</h2>
+  <ul>
+    <li><b>端末内のデータ</b>：アプリ内の「取込・設定」にある「全データをリセット（初期化）」、またはブラウザのサイトデータ削除で消去できます。</li>
+    <li><b>ログインの解除</b>：アプリ内の「ログアウト」で、アクセス権限を取り消します。</li>
+    <li><b>Googleアカウント側での取り消し</b>：<a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">Googleアカウントの権限管理</a>で本アプリのアクセスを削除できます。</li>
+    <li><b>クラウド上の保存データ</b>：Googleドライブの「設定」→「アプリの管理」から、本アプリの非表示データを削除できます。</li>
+  </ul>
+
+  <h2>6. 利用者のデータの第三者提供</h2>
+  <p>運営者は、そもそも利用者のデータを受け取らないため、第三者に提供することはありません。</p>
+
+  <h2>7. 子どものプライバシー</h2>
+  <p>本アプリは、13歳未満の方を対象としていません。</p>
+
+  <h2>8. 本ポリシーの変更</h2>
+  <p>本ポリシーを変更する場合は、本ページに掲載して通知します。変更後も本アプリを利用された場合は、変更後のポリシーに同意したものとみなします。</p>
+
+  <h2>9. お問い合わせ</h2>
+  <p>本ポリシーに関するお問い合わせは、次の連絡先までお願いします。</p>
+  <p>メール：<a href="mailto:kosukegawa.aoi@gmail.com">kosukegawa.aoi@gmail.com</a></p>
+
+</main>
+</body>
+</html>
