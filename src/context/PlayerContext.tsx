@@ -1056,7 +1056,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               if (action === 'recreate') recreatePlayer(id, 0);
               return;
             }
-            if (isAdPlayingRef.current) return; // 広告再生中は待つ
+            if (isAdPlayingRef.current) return; // 広告中は待つ
             let st = -2;
             try {
               st = p.getPlayerState?.();
@@ -1199,7 +1199,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             playsinline: 1,
             rel: 0,
             modestbranding: 1,
-            controls: 1,
+            controls: 0,
+            cc_load_policy: 0,
+            cc_lang_pref: 'ja',
             enablejsapi: 1,
             iv_load_policy: 3,
             fs: 0,
@@ -1210,6 +1212,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           events: {
             onReady: () => {
               setYtPlayerReady(true);
+              try {
+                ytPlayerRef.current?.unloadModule?.('captions');
+              } catch (e) {}
               if (pendingTrackRef.current) {
                 const p = pendingTrackRef.current;
                 pendingTrackRef.current = null;

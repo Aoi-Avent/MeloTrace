@@ -299,15 +299,16 @@ export const NowPlayingModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 bg-[#000000] flex flex-col justify-between overflow-hidden animate-in fade-in slide-in-from-bottom duration-300 mt-sheet">
-      {/* Apple Music Fluid Live Blurred Ambient Background */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none mt-ambient">
+      {/* Apple Music Fluid Live Blurred Ambient Background (強化版) */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
         <div
-          className="w-full h-full opacity-35 bg-cover bg-center"
+          className="w-full h-full opacity-40 bg-cover bg-center scale-125 transition-all duration-1000"
           style={{
             backgroundImage: `url(https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg)`,
+            filter: 'blur(60px) saturate(1.8)',
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/80 to-[#000000]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/70 to-[#000000]" />
       </div>
 
       {/* Top Header */}
@@ -903,6 +904,9 @@ export const NowPlayingModal: React.FC = () => {
             onTouchEnd={handleSeekCommit}
             onMouseUp={handleSeekCommit}
             className="apple-slider"
+            style={{
+              background: `linear-gradient(to right, #ffffff ${displayProgress}%, rgba(255,255,255,0.2) ${displayProgress}%)`
+            }}
           />
           <div className="flex justify-between text-[11px] font-medium text-[#8e8e93] mt-1.5 tabular-nums">
             <span>{formatTime(displayTime)}</span>
