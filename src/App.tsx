@@ -19,7 +19,6 @@ import { BackgroundGuideModal } from './components/BackgroundGuide';
 import { PlaybackToast } from './components/PlaybackToast';
 import { Mascot } from './components/Mascot';
 import { AdTip } from './components/AdTip';
-import { isNativeApp } from './utils/platform';
 import { usePref } from './utils/uiPrefs';
 import { DesktopModeBanner } from './components/DesktopModeBanner';
 import { SearchView } from './components/SearchView';
@@ -169,7 +168,7 @@ const AppContent: React.FC = () => {
         className={
           isVideoVisible
             ? 'fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-sm aspect-video rounded-2xl overflow-hidden shadow-2xl border border-fg/20 bg-black'
-            : `fixed bottom-[calc(1rem+var(--bottom-gap,0px))] right-4 z-0 w-[320px] h-[200px] pointer-events-none opacity-[0.001] ${videoMode === 'quiet' ? 'invisible' : ''}`
+            : `fixed bottom-[calc(1rem+var(--bottom-gap,0px))] right-4 z-0 w-[200px] h-[200px] pointer-events-none opacity-[0.001] ${videoMode === 'quiet' ? 'invisible' : ''}`
         }
         id="yt-player-wrapper"
       >
@@ -201,7 +200,7 @@ const AppContent: React.FC = () => {
       <NowPlayingModal />
 
       <Mascot />
-      {!isNativeApp() && <AdTip onOpen={() => setActiveTab('import')} />}
+      <AdTip onOpen={() => setActiveTab('import')} />
       <PlaybackToast />
       <DesktopModeBanner />
       <RetroPlayer />

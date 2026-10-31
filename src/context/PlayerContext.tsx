@@ -11,23 +11,22 @@ import { DEMO_TRACKS, DEMO_PLAYLISTS } from '../data/demoData';
 import { extractYouTubeId, extractSmartTrackMeta, isLikelyMusic, isBgmOrClassicalTrack } from '../utils/parser';
 import { getLyricsForTrack } from '../utils/lyricsService';
 import { audioKeepAlive } from '../utils/audioKeepAlive';
-import { setupNativeBackgroundResume } from '../utils/nativeBackground';
 import { applyTheme, getSavedThemeId, THEME_STORAGE_KEY } from '../utils/theme';
 import { getStatus as getArtistStatus, needsCheck as artistNeedsCheck, verifyArtist, setOverride as setArtistOverrideStore } from '../utils/artistVerify';
 import { findAlbumArt, getCachedArt, forgetArt } from '../utils/albumArt';
 import { primeChime, startWaitChime } from '../utils/waitChime';
-import { getPref } from '../utils/uiPrefs';
+import { getPref, usePref } from '../utils/uiPrefs';
+import { timeStore } from '../utils/timeStore';
 import { contentSignature, hashString, decideSync, SyncBase, SyncMode, ApplyState } from '../utils/syncMerge';
 import {
   GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_ID_ENV_NAME,
   requestAccessToken,
   fetchProfile,
   revokeToken,
   pullFromCloud,
   pushToCloud,
 } from '../utils/cloudSync';
-import { saveTracksToDB, loadTracksFromDB, savePlaylistsToDB, loadPlaylistsFromDB, clearDB } from '../utils/db';
+import { saveTracksToDB, putTracksToDB, deleteTracksFromDB, loadTracksFromDB, savePlaylistsToDB, loadPlaylistsFromDB, clearDB } from '../utils/db';
 
 declare global {
   interface Window {
@@ -44,8 +43,6 @@ interface PlayerContextType {
   playlists: Playlist[];
   currentTrack: MusicTrack | null;
   isPlaying: boolean;
-  currentTime: number;
-  duration: number;
   playbackRate: number;
   queue: MusicTrack[];
   queueIndex: number;
@@ -332,8 +329,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [queueIndex, setQueueIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [currentTime, setCurrentTime] = useState<number>(0);
-  const [duration, setDuration] = useState<number>(activeTracks[0]?.duration || 210);
+  // 再生位置・長さは専用の保管場所（timeStore）に置く。ここで state にすると、動くたびにアプリ全体が描き直される
+  const setCurrentTime = timeStore.setCurrentTime;
+  const setDuration = timeStore.setDuration;
+  const [powerMode] = usePref('melotrace_power_v1', 'off');
+  const [isHiddenPage, setIsHiddenPage] = useState<boolean>(() => typeof document !== 'undefined' && document.visibilityState === 'hidden');
+  useEffect(() => {
+    timeStore.setDuration(activeTracks[0]?.duration || 210);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const onVis = () => setIsHiddenPage(document.visibilityState === 'hidden');
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
   const [playbackRate, setPlaybackRateState] = useState<number>(1);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('all');
   const [isShuffle, setIsShuffle] = useState<boolean>(false);
@@ -488,6 +497,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     Promise.all([loadTracksFromDB(), loadPlaylistsFromDB()]).then(([dbTracks, dbPls]) => {
       if (!isMounted) return;
       if (dbTracks && dbTracks.length > 0) {
+        savedTracksRef.current = new Map(dbTracks.map((t) => [t.id, t])); // 保存済みの状態を覚えておく（以後は差分だけ書く）
         setTracks(dbTracks);
         setIsDemoMode(false);
       }
@@ -519,9 +529,24 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const persistTracksRef = useRef(tracks);
   persistTracksRef.current = tracks;
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTracksRef = useRef<Map<string, MusicTrack>>(new Map());
   const flushTracks = useCallback(() => {
     const list = persistTracksRef.current;
-    saveTracksToDB(list);
+    // 再生回数や歌詞などの小さな変更のたびに全曲を書き直すと重いので、変わった曲だけを書き込む
+    const saved = savedTracksRef.current;
+    const changed: MusicTrack[] = [];
+    let seen = 0;
+    for (const t of list) {
+      if (saved.has(t.id)) seen += 1;
+      if (saved.get(t.id) !== t) changed.push(t);
+    }
+    const removed = saved.size - seen;
+    if (saved.size === 0 || removed > 0 || changed.length > list.length * 0.4) {
+      saveTracksToDB(list);
+    } else {
+      putTracksToDB(changed);
+    }
+    if (changed.length > 0 || removed > 0) savedTracksRef.current = new Map(list.map((t) => [t.id, t]));
     try {
       // 起動を速くするための小さなキャッシュ（歌詞は含めない）
       const cacheSubset = list.slice(0, 300).map((t) => ({ ...t, lyrics: undefined }));
@@ -678,7 +703,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // バックグラウンドで、再生回数の多いアーティストから順に「実在するか」を判定する（結果は端末に保存）
   const verifierRunRef = useRef(0);
   useEffect(() => {
-    if (isDemoMode || tracks.length === 0) return;
+    if (isDemoMode || tracks.length === 0 || powerMode === 'on') return;
     const runId = ++verifierRunRef.current;
     let cancelled = false;
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -689,7 +714,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         totals.set(t.artist, (totals.get(t.artist) || 0) + (t.playCount || 1));
       }
       const names = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).map((e) => e[0]);
-      const pending = names.filter(artistNeedsCheck);
+      // 電池と通信の節約: 「公式アーティストのみ」を使っていない間は、1回の起動で最大60組までにする
+      const all = names.filter(artistNeedsCheck);
+      const pending = artistFilterMode === 'official' ? all : all.slice(0, 60);
       let done = names.length - pending.length;
       setVerifyProgress({ done, total: names.length });
       let sinceUpdate = 0;
@@ -727,7 +754,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [tracks.length, isDemoMode]);
+  }, [tracks.length, isDemoMode, powerMode, artistFilterMode]);
 
   const setArtworkSource = useCallback((src: 'album' | 'youtube') => {
     setArtworkSourceState(src);
@@ -1029,7 +1056,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               if (action === 'recreate') recreatePlayer(id, 0);
               return;
             }
-            if (isAdPlayingRef.current) return; // 広告再生中は待つ
+            if (isAdPlayingRef.current) return; // 広告中は待つ
             let st = -2;
             try {
               st = p.getPlayerState?.();
@@ -1138,45 +1165,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  // iOSアプリ: アプリを離れた直後にシステム都合で止められたら、自動で再生を再開する
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    let disposed = false;
-    setupNativeBackgroundResume({
-      isWanted: () => wantPlayingRef.current,
-      getState: () => ytPlayerRef.current?.getPlayerState?.(),
-      getTime: () => {
-        try {
-          return Number(ytPlayerRef.current?.getCurrentTime?.()) || 0;
-        } catch (e) {
-          return 0;
-        }
-      },
-      resume: () => {
-        try {
-          ytPlayerRef.current?.playVideo?.();
-        } catch (e) {}
-      },
-      reload: (startSeconds: number) => {
-        try {
-          const id = currentTrackRef.current?.id;
-          if (id) ytPlayerRef.current?.loadVideoById?.({ videoId: id, startSeconds });
-        } catch (e) {}
-      },
-      onStateChange: () => {
-        lastVisChangeRef.current = Date.now();
-      },
-      log: logEvent,
-    }).then((c) => {
-      if (disposed) c();
-      else cleanup = c;
-    });
-    return () => {
-      disposed = true;
-      cleanup?.();
-    };
-  }, [logEvent]);
-
   // Initialize YouTube IFrame Player
   useEffect(() => {
     const initPlayer = () => {
@@ -1211,7 +1199,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             playsinline: 1,
             rel: 0,
             modestbranding: 1,
-            controls: 1,
+            controls: 0,
+            cc_load_policy: 0,
+            cc_lang_pref: 'ja',
             enablejsapi: 1,
             iv_load_policy: 3,
             fs: 0,
@@ -1222,6 +1212,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           events: {
             onReady: () => {
               setYtPlayerReady(true);
+              try {
+                ytPlayerRef.current?.unloadModule?.('captions');
+              } catch (e) {}
               if (pendingTrackRef.current) {
                 const p = pendingTrackRef.current;
                 pendingTrackRef.current = null;
@@ -1383,7 +1376,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   // Poll real playback time & monitor ad state (間隔は用途に応じて可変: 歌詞表示中は細かく、それ以外は粗く = 再描画と電力を節約)
-  const pollMs = isNowPlayingOpen && nowPlayingTab === 'lyrics' ? 250 : 500;
+  // 画面が見えているか・何を表示しているかで間隔を変えて、無駄な処理（と電池）を減らす
+  const lowPower = powerMode === 'on';
+  const pollMs = isHiddenPage
+    ? 2500 // ロック中・別アプリ表示中: 広告の検知と再生の見張りだけ
+    : isNowPlayingOpen && nowPlayingTab === 'lyrics'
+    ? lowPower ? 500 : 250 // 歌詞の同期には細かい更新が必要
+    : isNowPlayingOpen
+    ? 500
+    : lowPower ? 1500 : 1000; // ミニプレイヤーの細い進行バーだけなら1秒ごとで十分
   useEffect(() => {
     if (!isPlaying) return;
     const id = setInterval(() => {
@@ -1394,6 +1395,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         applyAdState(isAd);
         if (isAd) return; // 広告中は時間を進めない
         recordMetricIfReady();
+        if (document.visibilityState === 'hidden') {
+          // 画面が見えていない間は、表示の更新をしない（ロック画面の位置表示だけたまに更新）
+          tickCountRef.current += 1;
+          if (tickCountRef.current % 2 === 0) {
+            const c = p.getCurrentTime();
+            const d = p.getDuration();
+            if (typeof c === 'number' && typeof d === 'number' && d > 0) audioKeepAlive.updatePositionState(c, d);
+          }
+          return;
+        }
 
         const current = p.getCurrentTime();
         const dur = p.getDuration();
@@ -1803,7 +1814,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!currentTrack) return;
     try {
       unmuteAudio();
-      const pos = currentTime || 0;
+      const pos = timeStore.get().currentTime || 0;
       if (ytPlayerRef.current?.loadVideoById) {
         loadSeqRef.current += 1;
         loadedAtRef.current = Date.now();
@@ -1819,7 +1830,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (e) {
       console.warn('resyncPlayer failed:', e);
     }
-  }, [currentTrack, currentTime, unmuteAudio, startWatchdog]);
+  }, [currentTrack, unmuteAudio, startWatchdog]);
 
   // Reset lyrics offset whenever track changes
   useEffect(() => {
@@ -2053,7 +2064,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const loginWithGoogle = useCallback(async () => {
     if (!GOOGLE_CLIENT_ID) {
-      setCloudError(`Googleログインはまだ設定されていません（${GOOGLE_CLIENT_ID_ENV_NAME} が未設定です）`);
+      setCloudError('Googleログインはまだ設定されていません（VITE_GOOGLE_CLIENT_ID が未設定です）');
       return;
     }
     setIsCloudSyncing(true);
@@ -2167,8 +2178,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         playlists,
         currentTrack,
         isPlaying,
-        currentTime,
-        duration,
         playbackRate,
         queue,
         queueIndex,
