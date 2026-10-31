@@ -1144,13 +1144,23 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let disposed = false;
     setupNativeBackgroundResume({
       isWanted: () => wantPlayingRef.current,
-      isPlaying: () => {
-        const st = ytPlayerRef.current?.getPlayerState?.();
-        return st === 1 || st === 3;
+      getState: () => ytPlayerRef.current?.getPlayerState?.(),
+      getTime: () => {
+        try {
+          return Number(ytPlayerRef.current?.getCurrentTime?.()) || 0;
+        } catch (e) {
+          return 0;
+        }
       },
       resume: () => {
         try {
           ytPlayerRef.current?.playVideo?.();
+        } catch (e) {}
+      },
+      reload: (startSeconds: number) => {
+        try {
+          const id = currentTrackRef.current?.id;
+          if (id) ytPlayerRef.current?.loadVideoById?.({ videoId: id, startSeconds });
         } catch (e) {}
       },
       onStateChange: () => {
