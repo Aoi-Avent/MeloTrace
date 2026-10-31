@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Play, Pause, SkipForward, Disc3, Loader2 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { WaitIndicator, WaitBar } from './WaitIndicator';
-import { usePlayerTime } from '../utils/timeStore';
 
 export const MiniPlayer: React.FC = () => {
   const {
@@ -10,6 +9,8 @@ export const MiniPlayer: React.FC = () => {
     isPlaying,
     isBuffering,
     isAdPlaying,
+    currentTime,
+    duration,
     togglePlay,
     nextTrack,
     setIsNowPlayingOpen,
@@ -17,7 +18,6 @@ export const MiniPlayer: React.FC = () => {
     artworkSource,
     albumArtFor,
   } = usePlayer();
-  const { currentTime, duration } = usePlayerTime();
 
   const [imgError, setImgError] = useState(false);
 
@@ -46,7 +46,7 @@ export const MiniPlayer: React.FC = () => {
                 loading="lazy"
               />
             ) : (
-              <Disc3 className={`w-6 h-6 text-accent ${isBuffering ? "animate-spin" : ""}`} />
+              <Disc3 className="w-6 h-6 text-accent animate-spin" />
             )}
 
             {/* Micro equalizing bar indicator when playing real music */}

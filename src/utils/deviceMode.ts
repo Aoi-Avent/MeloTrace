@@ -1,6 +1,9 @@
+import { isNativeApp } from './platform';
+
 /** iPhone/iPod のモバイル表示（＝デスクトップ用Webサイトではない）で開いているか */
 export function isIOSMobileMode(): boolean {
   if (typeof navigator === 'undefined') return false;
+  if (isNativeApp()) return false;
   return /iPhone|iPod/.test(navigator.userAgent);
 }
 

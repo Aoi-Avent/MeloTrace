@@ -2,7 +2,6 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { X, ChevronRight, Play, Pause, SkipBack, SkipForward } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { MusicTrack } from '../types/music';
-import { usePlayerTime } from '../utils/timeStore';
 
 type ScreenId = string; // 'root' | 'now' | 'songs' | 'artists' | 'artist:<name>' | 'favorites' | 'playlists' | 'pl:<id>' | 'settings'
 
@@ -31,6 +30,8 @@ export const RetroPlayer: React.FC = () => {
     playlists,
     currentTrack,
     isPlaying,
+    currentTime,
+    duration,
     togglePlay,
     nextTrack,
     prevTrack,
@@ -39,7 +40,6 @@ export const RetroPlayer: React.FC = () => {
     setIsShuffle,
     isShuffle,
   } = usePlayer();
-  const { currentTime, duration } = usePlayerTime();
 
   const [stack, setStack] = useState<ScreenId[]>(['root']);
   const [cursors, setCursors] = useState<Record<string, number>>({});

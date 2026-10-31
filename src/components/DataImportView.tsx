@@ -33,6 +33,8 @@ import { ExtensionGuideCard } from './ExtensionGuideCard';
 import { ArtistFilterToggle } from './ArtistFilterToggle';
 import { PlayDiagnostics } from './PlayDiagnostics';
 import { unzipSync } from 'fflate';
+import { saveTextFile } from '../utils/nativeFile';
+import { isNativeApp } from '../utils/platform';
 import { ThumbSettings } from './ThumbSettings';
 
 const GITHUB_ACTIONS_WORKFLOW_YAML = `name: Deploy to GitHub Pages
@@ -167,17 +169,13 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
   };
 
   // Download extracted JSON file with timestamped name
-  const handleDownloadMhtmlJson = () => {
+  const handleDownloadMhtmlJson = async () => {
     if (!mhtmlResult) return;
-    const blob = new Blob([mhtmlResult.jsonContent], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = mhtmlResult.filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    try {
+      await saveTextFile(mhtmlResult.filename, mhtmlResult.jsonContent);
+    } catch (err: any) {
+      setErrorMessage('ファイルの保存に失敗しました: ' + (err?.message || '不明なエラー'));
+    }
   };
 
   // Import extracted MHTML tracks to library
@@ -369,7 +367,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
 
       <AppearanceCard />
 
-      <ExtensionGuideCard />
+      {!isNativeApp() && <ExtensionGuideCard />}
 
       <div className="mb-5 p-4 rounded-2xl apple-card border border-fg/10">
         <h3 className="text-sm font-bold text-fg mb-1">表示するチャンネル</h3>

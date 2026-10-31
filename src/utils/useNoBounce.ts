@@ -1,46 +1,83 @@
 /**
- * iOS Safari のゴムのような引っ張り（バウンス）を防ぐ。
- *
- * 以前は touchmove のたびに、親要素をたどって getComputedStyle を何度も呼んでいた（1秒に60回以上）。
- * スタイルの再計算を強制するため、スクロール中の負荷と電池消費が大きかった。
- * 今は touchstart で一度だけ判定し、touchmove では判定済みの結果を使うだけにしている。
+ * Global iOS Safari Rubberband Bounce Elimination
+ * Fixes the "端までいくとグニャンとなる挙動" by clamping scrollTop
+ * on touchstart/touchmove so iOS Safari never initiates viewport elastic bounce.
  */
 export function initNoBounceScroll(): () => void {
-  let verticalScroller: HTMLElement | null = null;
-  let horizontalScroller = false;
-
   const handleTouchStart = (e: TouchEvent) => {
-    verticalScroller = null;
-    horizontalScroller = false;
-    let el = e.target as HTMLElement | null;
-    while (el && el !== document.body && el !== document.documentElement) {
-      const cs = window.getComputedStyle(el);
-      if (!verticalScroller && (cs.overflowY === 'auto' || cs.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
-        verticalScroller = el;
+    let target = e.target as HTMLElement | null;
+    let scrollableParent: HTMLElement | null = null;
+
+    while (target && target !== document.body && target !== document.documentElement) {
+      const style = window.getComputedStyle(target);
+      const overflowY = style.overflowY;
+      if (
+        (overflowY === 'auto' || overflowY === 'scroll') &&
+        target.scrollHeight > target.clientHeight
+      ) {
+        scrollableParent = target;
+        break;
       }
-      if (!horizontalScroller && (cs.overflowX === 'auto' || cs.overflowX === 'scroll') && el.scrollWidth > el.clientWidth) {
-        horizontalScroller = true;
-      }
-      if (verticalScroller && horizontalScroller) break;
-      el = el.parentElement;
+      target = target.parentElement;
     }
 
-    if (verticalScroller) {
-      // 端ぴったりで止まっているとバウンスが始まるので、1px内側に寄せる
-      const { scrollTop, scrollHeight, clientHeight } = verticalScroller;
-      if (scrollTop <= 0) verticalScroller.scrollTop = 1;
-      else if (scrollTop + clientHeight >= scrollHeight) verticalScroller.scrollTop = scrollHeight - clientHeight - 1;
+    if (!scrollableParent) {
+      return;
+    }
+
+    // iOS Boundary Clamp: prevent scrollTop from resting at exactly 0 or max scroll
+    const { scrollTop, scrollHeight, clientHeight } = scrollableParent;
+    if (scrollTop <= 0) {
+      scrollableParent.scrollTop = 1;
+    } else if (scrollTop + clientHeight >= scrollHeight) {
+      scrollableParent.scrollTop = scrollHeight - clientHeight - 1;
     }
   };
 
   const handleTouchMove = (e: TouchEvent) => {
-    if (horizontalScroller) return; // 横スクロールできる要素の上では何も妨げない
-    // スクロールできない場所では、画面全体が引っ張られないようにする
-    if (!verticalScroller && e.cancelable) e.preventDefault();
+    let target = e.target as HTMLElement | null;
+    let scrollableParent: HTMLElement | null = null;
+
+    while (target && target !== document.body && target !== document.documentElement) {
+      const style = window.getComputedStyle(target);
+      const overflowY = style.overflowY;
+      if (
+        (overflowY === 'auto' || overflowY === 'scroll') &&
+        target.scrollHeight > target.clientHeight
+      ) {
+        scrollableParent = target;
+        break;
+      }
+      target = target.parentElement;
+    }
+
+    // 横スクロールできる要素（例: 16:9サムネをスライドして見る領域）の上では何も妨げない
+    let hx: HTMLElement | null = e.target as HTMLElement | null;
+    while (hx && hx !== document.body && hx !== document.documentElement) {
+      const ox = window.getComputedStyle(hx).overflowX;
+      if ((ox === 'auto' || ox === 'scroll') && hx.scrollWidth > hx.clientWidth) return;
+      hx = hx.parentElement;
+    }
+
+    // If touching on a non-scrollable area, prevent dragging the whole page
+    if (!scrollableParent) {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    // If scrollable element has no scroll headroom (content fits within container)
+    if (scrollableParent.scrollHeight <= scrollableParent.clientHeight) {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    }
   };
 
   document.addEventListener('touchstart', handleTouchStart, { passive: true });
   document.addEventListener('touchmove', handleTouchMove, { passive: false });
+
   return () => {
     document.removeEventListener('touchstart', handleTouchStart);
     document.removeEventListener('touchmove', handleTouchMove);

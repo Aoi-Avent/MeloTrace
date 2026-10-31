@@ -2,10 +2,12 @@ import React from 'react';
 import { Smartphone, X, Check, AlertTriangle } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { isIOSMobileMode, isIOSDesktopMode, isAndroid } from '../utils/deviceMode';
+import { isNativeApp } from '../utils/platform';
 
 /** 各所に置ける「バックグラウンド再生」ボタン */
 export const BackgroundPlayButton: React.FC<{ className?: string; compact?: boolean }> = ({ className = '', compact }) => {
   const { setIsBgGuideOpen } = usePlayer();
+  if (isNativeApp()) return null; // アプリ版ではSafari向けの手順は不要
   return (
     <button
       onClick={() => setIsBgGuideOpen(true)}
@@ -21,7 +23,7 @@ export const BackgroundPlayButton: React.FC<{ className?: string; compact?: bool
 
 export const BackgroundGuideModal: React.FC = () => {
   const { isBgGuideOpen, setIsBgGuideOpen, keepAliveEnabled, setKeepAliveEnabled, currentTrack } = usePlayer();
-  if (!isBgGuideOpen) return null;
+  if (!isBgGuideOpen || isNativeApp()) return null;
 
   const iosMobile = isIOSMobileMode();
   const iosDesktop = isIOSDesktopMode();

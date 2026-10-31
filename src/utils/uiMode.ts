@@ -3,7 +3,6 @@ import { getPref, setPref } from './uiPrefs';
 export const PREF_UI = 'melotrace_ui_v1'; // 'classic' | 'next'
 export const PREF_ANIM = 'melotrace_anim_v1'; // 'on' | 'off'
 export const PREF_STATUSBAR = 'melotrace_statusbar_top_v1'; // 'on' | 'off'
-export const PREF_POWER = 'melotrace_power_v1'; // 'on' | 'off'（省電力モード）
 
 const FONT_LINK_ID = 'mt-next-fonts';
 
@@ -22,7 +21,6 @@ export function applyUiPrefs() {
   const ui = getPref(PREF_UI, 'classic');
   root.setAttribute('data-ui', ui === 'next' ? 'next' : 'classic');
   root.setAttribute('data-anim', getPref(PREF_ANIM, 'on') === 'off' ? 'off' : 'on');
-  root.setAttribute('data-power', getPref(PREF_POWER, 'off') === 'on' ? 'on' : 'off');
   if (ui === 'next') ensureNextFonts();
 }
 

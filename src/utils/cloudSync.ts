@@ -5,8 +5,13 @@
  * - 必要なもの: Google Cloud Console の OAuth クライアントID（ウェブ）→ VITE_GOOGLE_CLIENT_ID
  */
 import type { Playlist } from '../types/music';
+import { isNativeApp } from './platform';
 
-export const GOOGLE_CLIENT_ID: string = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
+// Web版は「ウェブ」タイプ、iOSアプリは「iOS」タイプのOAuthクライアントIDを使う
+const WEB_CLIENT_ID: string = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
+const IOS_CLIENT_ID: string = (import.meta as any).env?.VITE_GOOGLE_IOS_CLIENT_ID || '';
+export const GOOGLE_CLIENT_ID: string = isNativeApp() ? IOS_CLIENT_ID : WEB_CLIENT_ID;
+export const GOOGLE_CLIENT_ID_ENV_NAME: string = isNativeApp() ? 'VITE_GOOGLE_IOS_CLIENT_ID' : 'VITE_GOOGLE_CLIENT_ID';
 const SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.appdata';
 const SYNC_FILE_NAME = 'melotrace-sync.json';
 
@@ -77,6 +82,11 @@ export interface TokenResult {
 /** prompt: 'consent' = 同意画面を出す(初回) / '' = 既に同意済みなら無操作で更新を試みる */
 export async function requestAccessToken(prompt: '' | 'consent' | 'select_account'): Promise<TokenResult> {
   if (!GOOGLE_CLIENT_ID) throw new Error('NO_CLIENT_ID');
+  if (isNativeApp()) {
+    // iOSアプリ: ブラウザ画面 + PKCE（埋め込みWebViewではGoogleがログインを拒否するため）
+    const { nativeRequestAccessToken } = await import('./nativeGoogleAuth');
+    return nativeRequestAccessToken(GOOGLE_CLIENT_ID, SCOPES, prompt);
+  }
   await loadGsi();
   return new Promise<TokenResult>((resolve, reject) => {
     const client = (window as any).google.accounts.oauth2.initTokenClient({
@@ -103,6 +113,10 @@ export async function fetchProfile(token: string): Promise<GoogleProfile> {
 }
 
 export function revokeToken(token: string) {
+  if (isNativeApp()) {
+    import('./nativeGoogleAuth').then((m) => m.nativeRevokeToken(token)).catch(() => {});
+    return;
+  }
   try {
     (window as any).google?.accounts?.oauth2?.revoke(token, () => {});
   } catch (e) {}

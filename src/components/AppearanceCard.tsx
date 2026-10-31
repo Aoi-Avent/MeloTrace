@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, MoveVertical } from 'lucide-react';
 import { usePref, PREF_MASCOT, PREF_MASCOT_TALK } from '../utils/uiPrefs';
-import { PREF_UI, PREF_ANIM, PREF_STATUSBAR, PREF_POWER, setUiPref } from '../utils/uiMode';
+import { PREF_UI, PREF_ANIM, PREF_STATUSBAR, setUiPref } from '../utils/uiMode';
 import { isChimeEnabled, setChimeEnabled } from '../utils/waitChime';
 import { getBottomExtra, setBottomExtra } from '../utils/viewport';
 
@@ -24,24 +24,11 @@ export const AppearanceCard: React.FC = () => {
   const [ui] = usePref(PREF_UI, 'classic');
   const [anim] = usePref(PREF_ANIM, 'on');
   const [statusTop] = usePref(PREF_STATUSBAR, 'on');
-  const [power] = usePref(PREF_POWER, 'off');
   const [chime, setChime] = useState<boolean>(isChimeEnabled());
   const [videoMode, setVideoMode] = usePref('melotrace_video_mode_v1', 'normal');
 
   return (
     <>
-    <div className={`mb-5 p-4 rounded-2xl apple-card ${power === 'on' ? 'border border-[#30d158]/40' : ''}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-fg">省電力モード</p>
-          <p className="text-[10px] text-muted mt-1 leading-relaxed">
-            動きとぼかしを止め、おとだまを隠し、再生中の画面の更新を減らします。バッテリーの減りや動作の重さが気になるときに。機能はそのまま使えます。
-          </p>
-        </div>
-        <Switch on={power === 'on'} onChange={(v) => setUiPref(PREF_POWER, v ? 'on' : 'off')} label="省電力モード" />
-      </div>
-    </div>
-
     <div className="mb-5 p-4 rounded-2xl apple-card">
       <div className="flex items-center gap-2 mb-1">
         <Sparkles className="w-4 h-4 text-accent" />

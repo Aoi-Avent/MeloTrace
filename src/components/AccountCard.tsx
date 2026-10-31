@@ -1,6 +1,7 @@
 import React from 'react';
 import { Cloud, LogOut, RefreshCw, Loader2, AlertTriangle, Youtube } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
+import { GOOGLE_CLIENT_ID_ENV_NAME } from '../utils/cloudSync';
 
 export const AccountCard: React.FC = () => {
   const {
@@ -40,7 +41,7 @@ export const AccountCard: React.FC = () => {
           </button>
           {!cloudConfigured && (
             <p className="text-[11px] text-[#ff9f0a] mt-2 leading-relaxed">
-              この環境ではGoogleログインが未設定です。管理者設定（VITE_GOOGLE_CLIENT_ID）が必要です。
+              この環境ではGoogleログインが未設定です。管理者設定（{GOOGLE_CLIENT_ID_ENV_NAME}）が必要です。
             </p>
           )}
         </>
