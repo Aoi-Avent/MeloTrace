@@ -198,7 +198,7 @@ const AppContent: React.FC = () => {
             ? inFs
               ? 'fixed z-[90] bg-black'
               : 'fixed z-[60] aspect-video rounded-2xl overflow-hidden shadow-2xl border border-fg/20 bg-black'
-            : `fixed bottom-[calc(1rem+var(--bottom-gap,0px))] right-4 z-0 w-[320px] h-[200px] pointer-events-none opacity-[0.001] ${videoMode === 'quiet' ? 'invisible' : ''}`
+            : `fixed bottom-[calc(1rem+var(--bottom-gap,0px))] right-4 z-0 w-[200px] h-[200px] pointer-events-none opacity-[0.001] ${videoMode === 'quiet' ? 'invisible' : ''}`
         }
         id="yt-player-wrapper"
         data-ad={isAdPlaying ? '1' : '0'}

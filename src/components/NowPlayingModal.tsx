@@ -33,9 +33,17 @@ import {
   Plus,
   Crosshair,
   Disc,
+  Star,
+  List,
+  MessageSquareQuote,
+  Volume,
+  Volume2,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { setVideoFullscreen } from '../utils/videoFullscreen';
+import { isNativeApp } from '../utils/platform';
+import { isIOSDevice } from '../utils/deviceMode';
+import { AppleSlider, PauseGlyph, PlayGlyph, BackwardGlyph, ForwardGlyph, EllipsisGlyph } from './AppleControls';
 import { parseLrcLyrics, extractSmartTrackMeta } from '../utils/parser';
 import {
   getLyricsForTrack,
@@ -46,14 +54,13 @@ import {
 } from '../utils/lyricsService';
 import { LyricLine } from '../types/music';
 import { WaitIndicator } from './WaitIndicator';
+import { usePlayerTime } from '../utils/timeStore';
 
 export const NowPlayingModal: React.FC = () => {
   const {
     currentTrack,
     isPlaying,
     isBuffering,
-    currentTime,
-    duration,
     playbackRate,
     queue,
     repeatMode,
@@ -79,6 +86,8 @@ export const NowPlayingModal: React.FC = () => {
     nowPlayingTab,
     setNowPlayingTab,
     isAdPlaying,
+    volume,
+    setVolume,
     lyricsOffset,
     adjustLyricsOffset,
     resetLyricsOffset,
@@ -94,6 +103,7 @@ export const NowPlayingModal: React.FC = () => {
     albumArtState,
     retryAlbumArt,
   } = usePlayer();
+  const { currentTime, duration } = usePlayerTime();
 
   // 動画表示モード: 埋め込みプレーヤーを、ジャケット/サムネと同じ位置に重ねるため、枠の位置を共有する
   const videoSlotRef = useRef<HTMLDivElement>(null);
@@ -219,7 +229,7 @@ export const NowPlayingModal: React.FC = () => {
 
   const formatRemainingTime = (currentSec: number, durSec: number) => {
     const rem = Math.max(0, durSec - currentSec);
-    return `-${formatTime(rem)}`;
+    return `\u2212${formatTime(rem)}`;
   };
 
   const progress = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
@@ -326,201 +336,89 @@ export const NowPlayingModal: React.FC = () => {
     setManualLyricsInput('');
   };
 
+  const showVolume = !isIOSDevice();
+  const sheetBtn =
+    'w-full px-3 py-3 text-[15px] text-left text-white rounded-xl hover:bg-white/10 active:bg-white/10 transition-colors font-medium flex items-center gap-3';
+  const sheetChip = (on: boolean) =>
+    `px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors active:scale-95 ${on ? 'bg-white text-black' : 'bg-white/12 text-white/85'}`;
+
+  // 曲名・アーティスト・お気に入り（☆）・「…」の行。歌詞や待機列の表示中は、小さなジャケット付きの省スペース版にする
+  const infoRow = (compact: boolean) => (
+    <div className={`shrink-0 flex items-center gap-3 ${compact ? 'pb-3' : 'pt-5 pb-3'}`}>
+      {compact && (
+        <img
+          src={albumArt ? albumArt.url : `https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="w-[52px] h-[52px] rounded-lg object-cover shrink-0 bg-white/10"
+        />
+      )}
+      <div className="min-w-0 flex-1">
+        <h2 className={`${compact ? 'text-[17px]' : 'text-[22px]'} font-semibold text-white truncate leading-tight tracking-tight`}>
+          {currentTrack.title}
+        </h2>
+        <button
+          onClick={() => setSelectedArtistForDetail(currentTrack.artist)}
+          className={`${compact ? 'text-[17px]' : 'text-[22px]'} text-white/55 truncate max-w-full text-left leading-tight block`}
+          title="このアーティストの他の曲・アルバムを開く"
+        >
+          {currentTrack.artist}
+        </button>
+      </div>
+      <button
+        onClick={() => toggleFavorite(currentTrack.id)}
+        className="w-10 h-10 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform shrink-0"
+        aria-label="お気に入り"
+      >
+        <Star className={`w-[26px] h-[26px] ${currentTrack.isFavorite ? 'fill-white mt-pop' : 'stroke-[1.8]'}`} />
+      </button>
+      <button
+        onClick={() => setShowMoreMenu(true)}
+        className="w-10 h-10 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform shrink-0"
+        aria-label="その他のメニュー"
+      >
+        <EllipsisGlyph className="w-[26px] h-[26px]" />
+      </button>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-50 bg-[#000000] flex flex-col justify-between overflow-hidden animate-in fade-in slide-in-from-bottom duration-300 mt-sheet">
-      {/* Apple Music Fluid Live Blurred Ambient Background */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
+      {/* Apple Music 風の背景: ジャケットの色をぼかして全体に敷く */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none mt-ambient">
         <div
-          className="w-full h-full opacity-35 bg-cover bg-center"
+          className="absolute inset-[-25%] bg-cover bg-center"
           style={{
-            backgroundImage: `url(https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg)`,
+            backgroundImage: `url(${albumArt ? albumArt.url : `https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`})`,
+            filter: 'blur(56px) saturate(1.5)',
+            opacity: 0.8,
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/80 to-[#000000]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/55 to-black/75" />
       </div>
 
-      {/* Top Header */}
-      <header className="relative z-10 px-5 pt-[max(env(safe-area-inset-top,0px),12px)] pb-2 flex items-center justify-between">
-        <button
-          onClick={() => setIsNowPlayingOpen(false)}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white active:scale-90 transition-transform"
-          aria-label="閉じる"
-        >
-          <ChevronDown className="w-6 h-6 stroke-[2.5]" />
-        </button>
-
-        {/* Center Grab Handle */}
-        <div
-          onClick={() => setIsNowPlayingOpen(false)}
-          className="w-9 h-1 rounded-full bg-white/30 cursor-pointer hover:bg-white/50 transition-colors"
-        />
-
-        {/* Right contextual controls */}
-        <div className="flex items-center gap-1">
+      <div className="relative z-10 flex flex-col flex-1 min-h-0 w-full max-w-md mx-auto px-6 pt-[max(env(safe-area-inset-top,0px),12px)] pb-[max(env(safe-area-inset-bottom,0px),12px)]">
+        {/* つまみ（タップで閉じる） */}
+        <div className="shrink-0 flex justify-center pt-2 pb-4">
           <button
-            onClick={() => setIsBgGuideOpen(true)}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white transition-colors"
-            title="バックグラウンド再生"
+            onClick={() => setIsNowPlayingOpen(false)}
+            aria-label="閉じる"
+            className="px-10 py-2 -my-2"
           >
-            <Smartphone className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => { setIsRetroPlayerOpen(true); setIsNowPlayingOpen(false); }}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white transition-colors"
-            title="iPod / Walkman モード"
-          >
-            <Disc className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setShowTimerMenu(!showTimerMenu)}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors relative ${
-              sleepTimerMinutes ? 'text-accent bg-accent/20' : 'text-[#8e8e93] hover:text-white'
-            }`}
-            title="スリープタイマー"
-          >
-            <Timer className="w-5 h-5" />
-            {sleepTimerMinutes && (
-              <span className="absolute -top-1 -right-1 px-1 bg-accent text-[9px] font-bold text-on-accent rounded-full">
-                {sleepTimerMinutes}m
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setShowMoreMenu(!showMoreMenu)}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white transition-colors"
-            title="その他のメニュー"
-          >
-            <Ban className="w-4 h-4" />
+            <span className="block w-[60px] h-[5px] rounded-full bg-white/40" />
           </button>
         </div>
-      </header>
 
-      {/* More Options / Exclude Menu Popover */}
-      {showMoreMenu && (
-        <div className="absolute top-16 right-5 z-50 apple-glass rounded-2xl p-2 shadow-2xl flex flex-col gap-1 w-60 animate-in fade-in zoom-in-95 duration-150">
-          <p className="text-[11px] font-semibold text-[#8e8e93] px-2.5 py-1">曲・アーティスト操作</p>
-          <button
-            onClick={() => {
-              setSelectedArtistForDetail(currentTrack.artist);
-              setShowMoreMenu(false);
-            }}
-            className="px-3 py-2 text-xs text-left text-white hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-accent" />
-            <span>このアーティストの他の曲</span>
-          </button>
-          <button
-            onClick={() => {
-              banTrack(currentTrack.id);
-              setShowMoreMenu(false);
-              nextTrack();
-            }}
-            className="px-3 py-2 text-xs text-left text-accent hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
-          >
-            <Ban className="w-3.5 h-3.5" />
-            <span>この曲を非表示 (スキップ)</span>
-          </button>
-          <button
-            onClick={() => {
-              banArtist(currentTrack.artist);
-              setShowMoreMenu(false);
-              nextTrack();
-            }}
-            className="px-3 py-2 text-xs text-left text-accent hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
-          >
-            <Ban className="w-3.5 h-3.5" />
-            <span>このアーティストをBan</span>
-          </button>
-
-          <div className="my-1 border-t border-white/10" />
-          <p className="text-[11px] font-semibold text-[#8e8e93] px-2.5 py-0.5">歌詞操作</p>
-          <button
-            onClick={() => {
-              setShowMoreMenu(false);
-              setCustomSearchTitle(trackMeta?.cleanTitle || currentTrack.title);
-              setCustomSearchArtist(trackMeta?.originalProducer || currentTrack.artist);
-              setShowSearchModal(true);
-              handleExecuteCandidateSearch(trackMeta?.cleanTitle || currentTrack.title, trackMeta?.originalProducer || currentTrack.artist);
-            }}
-            className="px-3 py-2 text-xs text-left text-white hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
-          >
-            <Search className="w-3.5 h-3.5 text-accent" />
-            <span>歌詞の候補を探す / 再検索</span>
-          </button>
-          <button
-            onClick={() => {
-              setShowMoreMenu(false);
-              setManualLyricsInput(currentTrack.lyrics || '');
-              setShowManualLyricsModal(true);
-            }}
-            className="px-3 py-2 text-xs text-left text-white hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
-          >
-            <Edit3 className="w-3.5 h-3.5 text-[#30d158]" />
-            <span>歌詞を手動で貼り付け・編集</span>
-          </button>
-          {currentTrack.lyrics && (
-            <button
-              onClick={() => {
-                setShowMoreMenu(false);
-                handleClearLyrics();
-              }}
-              className="px-3 py-2 text-xs text-left text-accent hover:bg-white/10 rounded-xl transition-colors font-medium flex items-center gap-2"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>現在の歌詞を消去（リセット）</span>
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Sleep Timer Popover */}
-      {showTimerMenu && (
-        <div className="absolute top-16 right-5 z-50 apple-glass rounded-2xl p-2 shadow-2xl flex flex-col gap-1 w-44 animate-in fade-in zoom-in-95 duration-150">
-          <p className="text-[11px] font-semibold text-[#8e8e93] px-2.5 py-1">スリープタイマー</p>
-          {[
-            { label: 'オフ', val: null },
-            { label: '15分後', val: 15 },
-            { label: '30分後', val: 30 },
-            { label: '45分後', val: 45 },
-            { label: '60分後', val: 60 },
-          ].map((item) => (
-            <button
-              key={item.label}
-              onClick={() => {
-                setSleepTimer(item.val);
-                setShowTimerMenu(false);
-              }}
-              className={`px-3 py-2 text-xs text-left rounded-xl transition-colors ${
-                sleepTimerMinutes === item.val
-                  ? 'bg-accent text-on-accent font-semibold'
-                  : 'text-[#f5f5f7] hover:bg-white/10'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* CENTER STAGE */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-2 min-h-0 overflow-y-auto overflow-x-hidden ios-scroll-container">
-        {/* MODE: ARTWORK */}
-        {nowPlayingTab === 'art' && (
-          <div className="w-full flex flex-col items-center gap-3">
-          <div
-            className={`${artIsWide ? 'aspect-video' : 'aspect-square'} relative rounded-2xl overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.85)] border border-white/10 flex items-center justify-center bg-[#1c1c1e] shrink-0 mt-art-frame transition-all duration-500 ease-out ${
-              isPlaying ? 'scale-100' : 'scale-[0.88]'
-            }`}
-            style={{
-              // 画面の高さに合わせて大きさを決める（Safariのバーで下が隠れないように）。設定画面の「ジャケットの大きさ・位置」も反映
-              width: artIsWide
-                ? 'calc(min(100%, 360px, max(266px, (100dvh - 440px) * 1.7778)) * var(--art-scale, 1))'
-                : 'calc(min(100%, 310px, max(170px, 100dvh - 440px)) * var(--art-scale, 1))',
-              maxWidth: '100%',
-              marginTop: 'var(--art-y, 0px)',
-            }}
-          >
+        {/* ===== ジャケット / 動画 ===== */}
+        {(nowPlayingTab === 'art' || nowPlayingTab === 'video') && (
+          <>
+            <div className="np-stage flex-1 min-h-0 relative flex items-center justify-center">
+              {nowPlayingTab === 'art' ? (
+                <div
+                  className={`np-art ${artIsWide ? 'aspect-video' : 'aspect-square'} relative rounded-2xl overflow-hidden shadow-[0_20px_44px_rgba(0,0,0,0.45)] flex items-center justify-center bg-white/10 shrink-0 mt-art-frame transition-transform duration-500 ease-out ${
+                    isPlaying ? 'scale-100' : 'scale-[0.88]'
+                  }`}
+                >
             {!imgError ? (
               (() => {
                 const onLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -572,7 +470,7 @@ export const NowPlayingModal: React.FC = () => {
               })()
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-                <Disc3 className="w-16 h-16 text-accent animate-spin mb-2" />
+                <Disc3 className={`w-16 h-16 text-accent mb-2 ${isBuffering ? "animate-spin" : ""}`} />
                 <p className="text-sm font-bold text-white line-clamp-2">{currentTrack.title}</p>
                 <p className="text-xs text-[#8e8e93] mt-1">{currentTrack.artist}</p>
               </div>
@@ -590,62 +488,31 @@ export const NowPlayingModal: React.FC = () => {
                 ボカロ原曲: {trackMeta.originalProducer}
               </div>
             )}
-
-            {/* Apple Music Fluid Waveform Visualizer */}
-            {isPlaying && (
-              <div className="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-full bg-black/70 border border-white/10 flex items-end gap-[3px] h-6 shadow-lg">
-                <span className="w-1 bg-accent rounded-full apple-eq-bar-1" />
-                <span className="w-1 bg-accent rounded-full apple-eq-bar-2" />
-                <span className="w-1 bg-accent rounded-full apple-eq-bar-3" />
-                <span className="w-1 bg-accent rounded-full apple-eq-bar-4" />
-                <span className="w-1 bg-accent rounded-full apple-eq-bar-5" />
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap justify-center">
-          <div className="flex items-center gap-1 p-0.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-semibold">
-            <button
-              onClick={() => setArtworkSource('album')}
-              className={`px-2.5 py-1 rounded-full transition-colors ${artworkSource === 'album' ? 'bg-white text-black' : 'text-white/70'}`}
-            >
-              ジャケット
-            </button>
-            <button
-              onClick={() => setArtworkSource('youtube')}
-              className={`px-2.5 py-1 rounded-full transition-colors ${artworkSource === 'youtube' ? 'bg-white text-black' : 'text-white/70'}`}
-            >
-              サムネ
-            </button>
-          </div>
-          <div className="flex items-center gap-1 p-0.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-semibold">
-            {([['auto','自動'],['1:1','1:1'],['16:9','16:9']] as const).map(([v,l]) => (
-              <button
-                key={v}
-                onClick={() => setArtworkAspectRatio(v)}
-                className={`px-2.5 py-1 rounded-full transition-colors ${artworkAspectRatio === v ? 'bg-white text-black' : 'text-white/70'}`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-          </div>
-          {artworkSource === 'album' && !albumArt && (
-            <p className="text-[10px] text-white/60 flex items-center gap-2">
-              {albumStatus === 'unknown' ? 'ジャケットを探しています…' : 'この曲のジャケットは見つかりませんでした（サムネを表示中）'}
-              {albumStatus === 'none' && (
-                <button onClick={() => retryAlbumArt(currentTrack)} className="underline text-white/80">
-                  再検索
-                </button>
+                </div>
+              ) : (
+                <>
+                  {/* 埋め込みプレーヤーはこの枠の位置に重なる（ジャケットと同じ大きさ・位置） */}
+                  <div ref={videoSlotRef} className="np-art aspect-video rounded-2xl shrink-0 pointer-events-none" />
+                  <button
+                    onClick={() => setVideoFullscreen(true)}
+                    className="absolute bottom-0 left-1/2 -translate-x-1/2 px-3.5 py-1.5 rounded-full bg-white/15 text-[12px] font-semibold text-white flex items-center gap-1.5 active:scale-95 transition-transform"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    全画面
+                  </button>
+                </>
               )}
-            </p>
-          )}
-          {albumArt && albumArt.album && <p className="text-[10px] text-white/60 truncate max-w-[300px]">{albumArt.album}</p>}
-          </div>
+            </div>
+            {infoRow(false)}
+          </>
         )}
 
-        {/* MODE: LYRICS (Real Synced Lyrics or Clean Missing State) */}
+        {/* ===== 歌詞 ===== */}
         {nowPlayingTab === 'lyrics' && (
-          <div className="w-full h-full flex flex-col items-center justify-start max-h-[380px]">
+          <>
+            {infoRow(true)}
+            <div className="flex-1 min-h-0 flex flex-col">
+          <div className="w-full h-full flex flex-col items-center justify-start min-h-0">
             {/* Top Lyrics Action Ribbon */}
             <div className="w-full max-w-sm flex items-center justify-between px-3 py-1.5 mb-2 rounded-xl bg-white/10 border border-white/10 text-xs shrink-0 z-20">
               <div className="flex items-center gap-1.5 text-white/80 font-medium">
@@ -824,43 +691,36 @@ export const NowPlayingModal: React.FC = () => {
               </div>
             )}
           </div>
-        )}
-
-        {/* MODE: VIDEO */}
-        {nowPlayingTab === 'video' && (
-          <div className="w-full flex flex-col items-center gap-3">
-            {/* 埋め込みプレーヤーはこの枠の位置に重なる（ジャケットの横長表示と同じ大きさ・位置） */}
-            <div
-              ref={videoSlotRef}
-              className="aspect-video rounded-2xl shrink-0 pointer-events-none"
-              style={{
-                width: 'calc(min(100%, 360px, max(266px, (100dvh - 440px) * 1.7778)) * var(--art-scale, 1))',
-                maxWidth: '100%',
-                marginTop: 'var(--art-y, 0px)',
-              }}
-            />
-            <div className="flex items-center gap-2 flex-wrap justify-center">
-              <button
-                onClick={() => setVideoFullscreen(true)}
-                className="px-3.5 py-1.5 rounded-full bg-white/10 border border-white/10 text-[11px] font-semibold text-white/85 flex items-center gap-1.5 active:scale-95 transition-transform"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-                全画面
-              </button>
             </div>
-          </div>
+          </>
         )}
 
-        {/* MODE: UP NEXT QUEUE */}
+        {/* ===== 再生待機列 ===== */}
         {nowPlayingTab === 'queue' && (
-          <div className="w-full h-full max-h-[380px] overflow-y-auto px-2 py-2 flex flex-col gap-2 ios-scroll-container">
+          <>
+            {infoRow(true)}
+            <div className="flex-1 min-h-0 flex flex-col">
+          <div className="w-full flex-1 min-h-0 overflow-y-auto px-2 py-2 flex flex-col gap-2 ios-scroll-container">
             <div className="flex items-center justify-between px-2 mb-1">
               <h4 className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider">
                 次に再生 ({queue.length}曲)
               </h4>
-              <span className="text-[11px] text-accent font-medium">
-                {isShuffle ? 'シャッフル中' : '通常再生'}
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsShuffle(!isShuffle)}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition ${isShuffle ? 'bg-white text-black' : 'bg-white/15 text-white'}`}
+                  aria-label="シャッフル"
+                >
+                  <Shuffle className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={cycleRepeat}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition ${repeatMode !== 'off' ? 'bg-white text-black' : 'bg-white/15 text-white'}`}
+                  aria-label="リピート"
+                >
+                  {repeatMode === 'one' ? <Repeat1 className="w-4 h-4" /> : <Repeat className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             {queue.map((t, idx) => {
@@ -894,14 +754,13 @@ export const NowPlayingModal: React.FC = () => {
               );
             })}
           </div>
+            </div>
+          </>
         )}
-      </div>
 
-      {/* BOTTOM CONTROL PANEL */}
-      <footer className="relative z-10 px-6 pb-[max(env(safe-area-inset-bottom,0px),16px)] pt-1 max-w-md mx-auto w-full">
-        {/* Ad Status Indicator */}
+        {/* 広告中の表示 */}
         {isAdPlaying && (
-          <div className="mb-3 px-3.5 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between animate-in fade-in">
+          <div className="shrink-0 mb-2 px-3.5 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between animate-in fade-in">
             <span className="flex items-center gap-2 font-medium">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
               <span>広告終了までお待ちください（消音・2倍速中）</span>
@@ -910,191 +769,290 @@ export const NowPlayingModal: React.FC = () => {
           </div>
         )}
 
-        {/* Track Title, Artist, & Favorite */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="min-w-0 pr-3">
-            <h2 className="text-xl md:text-2xl font-bold text-white truncate tracking-tight">
-              {currentTrack.title}
-            </h2>
-            <button
-              onClick={() => setSelectedArtistForDetail(currentTrack.artist)}
-              className="text-base font-medium text-[#8e8e93] hover:text-accent truncate mt-0.5 flex items-center gap-1 group text-left transition-colors max-w-full"
-              title="このアーティストの他の曲・アルバムを開く"
-            >
-              <span className="truncate group-hover:underline">{currentTrack.artist}</span>
-              <ChevronRight className="w-4 h-4 opacity-70 group-hover:opacity-100 shrink-0 text-[#8e8e93] group-hover:text-accent transition-colors" />
-            </button>
-          </div>
-
-          <button
-            onClick={() => toggleFavorite(currentTrack.id)}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-accent active:scale-90 transition-transform shrink-0"
-            aria-label="お気に入り"
-          >
-            <Heart
-              className={`w-6 h-6 ${
-                currentTrack.isFavorite ? 'text-accent fill-accent mt-pop' : 'stroke-[1.8]'
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* Scrubber Slider */}
-        <div className="mb-4">
-          <input
-            type="range"
-            min="0"
-            max="100"
-            step="0.1"
-            value={displayProgress}
-            onChange={handleSeekInput}
-            onPointerUp={handleSeekCommit}
-            onTouchEnd={handleSeekCommit}
-            onMouseUp={handleSeekCommit}
-            className="apple-slider"
+        {/* ===== 再生バー ===== */}
+        <div className="shrink-0 pt-1">
+          <AppleSlider
+            value={displayProgress / 100}
+            ariaLabel="再生位置"
+            onScrub={(v) => {
+              setIsSeeking(true);
+              setSeekVal(v * 100);
+            }}
+            onCommit={(v) => {
+              setIsSeeking(true);
+              setSeekVal(v * 100);
+              seekTo(v * duration);
+              // 再生側の位置が追いつくまで、バーが一瞬戻らないように少し待つ
+              window.setTimeout(() => setIsSeeking(false), 700);
+            }}
           />
-          <div className="flex justify-between text-[11px] font-medium text-[#8e8e93] mt-1.5 tabular-nums">
+          <div className="flex justify-between items-center -mt-1 text-[13px] font-semibold text-white/35 tabular-nums">
             <span>{formatTime(displayTime)}</span>
             <WaitIndicator className="-mt-0.5" />
             <span>{formatRemainingTime(displayTime, duration)}</span>
           </div>
         </div>
 
-        {/* Main Transport Controls */}
-        <div className="flex items-center justify-between px-3 mb-6">
-          <button
-            onClick={() => setIsShuffle(!isShuffle)}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-90 ${
-              isShuffle ? 'text-accent' : 'text-[#8e8e93] hover:text-white'
-            }`}
-            aria-label="シャッフル"
-          >
-            <Shuffle className="w-5 h-5 stroke-[2]" />
-          </button>
-
+        {/* ===== 前の曲 / 再生・一時停止 / 次の曲 ===== */}
+        <div className="shrink-0 flex items-center justify-center gap-[27px] pt-3 pb-4">
           <button
             onClick={prevTrack}
-            className="w-12 h-12 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
+            className="w-20 h-16 flex items-center justify-center text-white active:scale-90 active:opacity-60 transition"
             aria-label="前の曲"
           >
-            <SkipBack className="w-8 h-8 fill-current" />
+            <BackwardGlyph className="w-10 h-6" />
           </button>
-
           <button
             onClick={togglePlay}
-            className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_4px_24px_rgba(255,255,255,0.25)] mt-key"
+            className="w-20 h-16 flex items-center justify-center text-white active:scale-90 active:opacity-60 transition mt-key"
             aria-label={isPlaying ? '一時停止' : '再生'}
           >
             {(isBuffering || isAdPlaying) && isPlaying ? (
-              <Loader2 className="w-8 h-8 animate-spin text-black" />
+              <Loader2 className="w-9 h-9 animate-spin" />
             ) : isPlaying ? (
-              <Pause className="w-8 h-8 fill-current" />
+              <PauseGlyph className="w-[30px] h-10" />
             ) : (
-              <Play className="w-8 h-8 fill-current ml-1" />
+              <PlayGlyph className="w-[34px] h-10" />
             )}
           </button>
-
           <button
             onClick={nextTrack}
-            className="w-12 h-12 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
+            className="w-20 h-16 flex items-center justify-center text-white active:scale-90 active:opacity-60 transition"
             aria-label="次の曲"
           >
-            <SkipForward className="w-8 h-8 fill-current" />
-          </button>
-
-          <button
-            onClick={cycleRepeat}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-90 ${
-              repeatMode !== 'off' ? 'text-accent' : 'text-[#8e8e93] hover:text-white'
-            }`}
-            aria-label="リピート"
-          >
-            {repeatMode === 'one' ? (
-              <Repeat1 className="w-5 h-5 stroke-[2.2]" />
-            ) : (
-              <Repeat className="w-5 h-5 stroke-[2]" />
-            )}
+            <ForwardGlyph className="w-10 h-6" />
           </button>
         </div>
 
-        {/* Bottom Toolbar: Lyrics, Video, YouTube Direct Link, Queue, Speed */}
-        <div className="flex items-center justify-between text-[#8e8e93] px-2 pt-2 border-t border-white/10">
+        {/* ===== 音量（iPhone / iPad ではWebから変えられないため、表示しない） ===== */}
+        {showVolume && (
+          <div className="shrink-0 flex items-center gap-3 pb-3 text-white/55">
+            <Volume className="w-4 h-4 shrink-0" />
+            <div className="flex-1">
+              <AppleSlider
+                value={volume / 100}
+                ariaLabel="音量"
+                onScrub={(v) => setVolume(v * 100)}
+                onCommit={(v) => setVolume(v * 100)}
+              />
+            </div>
+            <Volume2 className="w-5 h-5 shrink-0" />
+          </div>
+        )}
+
+        {/* ===== 下の3つのボタン: 歌詞 / MV映像 / 再生待機列 ===== */}
+        <div className="shrink-0 grid grid-cols-3 justify-items-center items-center pt-1">
           <button
             onClick={() => setNowPlayingTab(nowPlayingTab === 'lyrics' ? 'art' : 'lyrics')}
-            className={`p-2.5 rounded-full transition-all active:scale-90 ${
-              nowPlayingTab === 'lyrics'
-                ? 'bg-white text-black shadow-lg scale-105'
-                : 'text-[#8e8e93] hover:text-white'
+            className={`w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition ${
+              nowPlayingTab === 'lyrics' ? 'bg-white/45 text-[#14191c]' : 'text-white/55'
             }`}
-            title="歌詞"
+            aria-label="歌詞"
           >
-            <Quote className="w-5 h-5" />
+            <MessageSquareQuote className="w-[22px] h-[22px]" />
           </button>
-
           <button
             onClick={() => setNowPlayingTab(nowPlayingTab === 'video' ? 'art' : 'video')}
-            className={`p-2.5 rounded-full transition-all active:scale-90 ${
-              nowPlayingTab === 'video'
-                ? 'bg-white text-black shadow-lg scale-105'
-                : 'text-[#8e8e93] hover:text-white'
+            className={`w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition ${
+              nowPlayingTab === 'video' ? 'bg-white/45 text-[#14191c]' : 'text-white/55'
             }`}
-            title="MV映像"
+            aria-label="MV映像"
           >
-            <Tv className="w-5 h-5" />
+            <Tv className="w-[22px] h-[22px]" />
           </button>
-
-          <a
-            href={`https://www.youtube.com/watch?v=${currentTrack.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2.5 rounded-full text-[#8e8e93] hover:text-white active:scale-90 transition-transform"
-            title="YouTubeで開く"
-          >
-            <ExternalLink className="w-5 h-5" />
-          </a>
-
           <button
             onClick={() => setNowPlayingTab(nowPlayingTab === 'queue' ? 'art' : 'queue')}
-            className={`p-2.5 rounded-full transition-all active:scale-90 ${
-              nowPlayingTab === 'queue'
-                ? 'bg-white text-black shadow-lg scale-105'
-                : 'text-[#8e8e93] hover:text-white'
+            className={`relative w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition ${
+              nowPlayingTab === 'queue' ? 'bg-white/45 text-[#14191c]' : 'text-white/55'
             }`}
-            title="再生待機列"
+            aria-label="再生待機列"
           >
-            <ListMusic className="w-5 h-5" />
-          </button>
-
-          <div className="relative">
-            <button
-              onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-              className="px-2.5 py-1 rounded-full text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
-            >
-              {playbackRate}x
-            </button>
-            {showSpeedMenu && (
-              <div className="absolute bottom-10 right-0 z-50 apple-glass rounded-xl p-1 shadow-2xl flex flex-col gap-1 w-20">
-                {[0.75, 1.0, 1.25, 1.5].map((rate) => (
-                  <button
-                    key={rate}
-                    onClick={() => {
-                      setPlaybackRate(rate);
-                      setShowSpeedMenu(false);
-                    }}
-                    className={`px-2 py-1 text-xs text-center rounded-lg ${
-                      playbackRate === rate
-                        ? 'bg-accent text-on-accent font-bold'
-                        : 'text-white/80 hover:bg-white/10'
-                    }`}
-                  >
-                    {rate}x
-                  </button>
-                ))}
-              </div>
+            <List className="w-[22px] h-[22px]" />
+            {(repeatMode !== 'off' || isShuffle) && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white/35 text-white flex items-center justify-center">
+                {repeatMode === 'one' ? (
+                  <Repeat1 className="w-3 h-3" />
+                ) : repeatMode === 'all' ? (
+                  <Repeat className="w-3 h-3" />
+                ) : (
+                  <Shuffle className="w-3 h-3" />
+                )}
+              </span>
             )}
+          </button>
+        </div>
+      </div>
+
+      {/* ===== 「…」メニュー（下から出るシート） ===== */}
+      {showMoreMenu && (
+        <div className="fixed inset-0 z-[65] flex items-end" onClick={() => setShowMoreMenu(false)}>
+          <div className="absolute inset-0 bg-black/55" />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md mx-auto max-h-[80dvh] overflow-y-auto ios-scroll-container rounded-t-3xl bg-[#1c1c1e]/95 backdrop-blur-xl p-4 pb-[max(env(safe-area-inset-bottom,0px),16px)] animate-in slide-in-from-bottom duration-200"
+          >
+            <div className="mx-auto mb-3 w-10 h-1 rounded-full bg-white/30" />
+
+            <p className="text-[12px] font-semibold text-[#8e8e93] px-2 py-1">曲・アーティスト</p>
+            <button
+              onClick={() => {
+                setSelectedArtistForDetail(currentTrack.artist);
+                setShowMoreMenu(false);
+              }}
+              className={sheetBtn}
+            >
+              <Sparkles className="w-4 h-4 text-accent" />
+              <span>このアーティストの他の曲</span>
+            </button>
+            <button
+              onClick={() => {
+                banTrack(currentTrack.id);
+                setShowMoreMenu(false);
+                nextTrack();
+              }}
+              className={`${sheetBtn} !text-accent`}
+            >
+              <Ban className="w-4 h-4" />
+              <span>この曲を非表示 (スキップ)</span>
+            </button>
+            <button
+              onClick={() => {
+                banArtist(currentTrack.artist);
+                setShowMoreMenu(false);
+                nextTrack();
+              }}
+              className={`${sheetBtn} !text-accent`}
+            >
+              <Ban className="w-4 h-4" />
+              <span>このアーティストをBan</span>
+            </button>
+
+            <p className="text-[12px] font-semibold text-[#8e8e93] px-2 pt-3 pb-1">再生速度</p>
+            <div className="flex gap-2 px-1 pb-1">
+              {[0.75, 1.0, 1.25, 1.5].map((rate) => (
+                <button key={rate} onClick={() => setPlaybackRate(rate)} className={sheetChip(playbackRate === rate)}>
+                  {rate}x
+                </button>
+              ))}
+            </div>
+
+            <p className="text-[12px] font-semibold text-[#8e8e93] px-2 pt-3 pb-1">スリープタイマー</p>
+            <div className="flex gap-2 flex-wrap px-1 pb-1">
+              {[
+                { label: 'オフ', val: null },
+                { label: '15分', val: 15 },
+                { label: '30分', val: 30 },
+                { label: '45分', val: 45 },
+                { label: '60分', val: 60 },
+              ].map((item) => (
+                <button key={item.label} onClick={() => setSleepTimer(item.val)} className={sheetChip(sleepTimerMinutes === item.val)}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-[12px] font-semibold text-[#8e8e93] px-2 pt-3 pb-1">ジャケットの表示</p>
+            <div className="flex gap-2 flex-wrap px-1 pb-1">
+              <button onClick={() => setArtworkSource('album')} className={sheetChip(artworkSource === 'album')}>
+                ジャケット
+              </button>
+              <button onClick={() => setArtworkSource('youtube')} className={sheetChip(artworkSource === 'youtube')}>
+                サムネ
+              </button>
+            </div>
+            <div className="flex gap-2 flex-wrap px-1 pt-2 pb-1">
+              {([['auto', '自動'], ['1:1', '1:1'], ['16:9', '16:9']] as const).map(([v, l]) => (
+                <button key={v} onClick={() => setArtworkAspectRatio(v)} className={sheetChip(artworkAspectRatio === v)}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {artworkSource === 'album' && !albumArt && (
+              <p className="text-[11px] text-white/60 px-2 pt-2 flex items-center gap-2">
+                {albumStatus === 'unknown' ? 'ジャケットを探しています…' : 'この曲のジャケットは見つかりませんでした（サムネを表示中）'}
+                {albumStatus === 'none' && (
+                  <button onClick={() => retryAlbumArt(currentTrack)} className="underline text-white/80">
+                    再検索
+                  </button>
+                )}
+              </p>
+            )}
+            {albumArt && albumArt.album && <p className="text-[11px] text-white/60 px-2 pt-2 truncate">{albumArt.album}</p>}
+
+            <p className="text-[12px] font-semibold text-[#8e8e93] px-2 pt-3 pb-1">歌詞</p>
+            <button
+              onClick={() => {
+                setShowMoreMenu(false);
+                setCustomSearchTitle(trackMeta?.cleanTitle || currentTrack.title);
+                setCustomSearchArtist(trackMeta?.originalProducer || currentTrack.artist);
+                setShowSearchModal(true);
+                handleExecuteCandidateSearch(trackMeta?.cleanTitle || currentTrack.title, trackMeta?.originalProducer || currentTrack.artist);
+              }}
+              className={sheetBtn}
+            >
+              <Search className="w-4 h-4 text-accent" />
+              <span>歌詞の候補を探す / 再検索</span>
+            </button>
+            <button
+              onClick={() => {
+                setShowMoreMenu(false);
+                setManualLyricsInput(currentTrack.lyrics || '');
+                setShowManualLyricsModal(true);
+              }}
+              className={sheetBtn}
+            >
+              <Edit3 className="w-4 h-4 text-[#30d158]" />
+              <span>歌詞を手動で貼り付け・編集</span>
+            </button>
+            {currentTrack.lyrics && (
+              <button
+                onClick={() => {
+                  setShowMoreMenu(false);
+                  handleClearLyrics();
+                }}
+                className={`${sheetBtn} !text-accent`}
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>現在の歌詞を消去（リセット）</span>
+              </button>
+            )}
+
+            <p className="text-[12px] font-semibold text-[#8e8e93] px-2 pt-3 pb-1">その他</p>
+            <button
+              onClick={() => {
+                setShowMoreMenu(false);
+                setIsRetroPlayerOpen(true);
+                setIsNowPlayingOpen(false);
+              }}
+              className={sheetBtn}
+            >
+              <Disc className="w-4 h-4" />
+              <span>iPod / Walkman モード</span>
+            </button>
+            {!isNativeApp() && (
+              <button
+                onClick={() => {
+                  setShowMoreMenu(false);
+                  setIsBgGuideOpen(true);
+                }}
+                className={sheetBtn}
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>バックグラウンド再生のコツ</span>
+              </button>
+            )}
+            <a
+              href={`https://www.youtube.com/watch?v=${currentTrack.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={sheetBtn}
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>YouTubeで開く</span>
+            </a>
           </div>
         </div>
-      </footer>
+      )}
 
       {/* Manual Lyrics Paste Modal */}
       {showManualLyricsModal && (

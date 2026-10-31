@@ -162,33 +162,19 @@ input[type=range].apple-slider:active::-webkit-slider-thumb {
   border-radius: 9999px;
 }
 
-/* Apple Music Fluid Equalizer Waveform */
-@keyframes apple-eq-1 {
-  0%, 100% { height: 4px; }
-  50% { height: 16px; }
-}
-@keyframes apple-eq-2 {
-  0%, 100% { height: 14px; }
-  50% { height: 6px; }
-}
-@keyframes apple-eq-3 {
-  0%, 100% { height: 8px; }
-  50% { height: 22px; }
-}
-@keyframes apple-eq-4 {
-  0%, 100% { height: 18px; }
-  50% { height: 5px; }
-}
-@keyframes apple-eq-5 {
-  0%, 100% { height: 6px; }
-  50% { height: 15px; }
-}
-
-.apple-eq-bar-1 { animation: apple-eq-1 0.7s ease-in-out infinite; }
-.apple-eq-bar-2 { animation: apple-eq-2 0.55s ease-in-out infinite; }
-.apple-eq-bar-3 { animation: apple-eq-3 0.85s ease-in-out infinite; }
-.apple-eq-bar-4 { animation: apple-eq-4 0.6s ease-in-out infinite; }
-.apple-eq-bar-5 { animation: apple-eq-5 0.75s ease-in-out infinite; }
+/* イコライザー。以前は height をアニメーションさせていて、毎フレームのレイアウト計算が発生していた。
+   今は transform(scaleY) だけを動かす（GPU処理で軽い）。見た目の高さの範囲は同じ */
+@keyframes apple-eq-1 { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
+@keyframes apple-eq-2 { 0%, 100% { transform: scaleY(0.78); } 50% { transform: scaleY(0.33); } }
+@keyframes apple-eq-3 { 0%, 100% { transform: scaleY(0.36); } 50% { transform: scaleY(1); } }
+@keyframes apple-eq-4 { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.28); } }
+@keyframes apple-eq-5 { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(0.95); } }
+[class*="apple-eq-bar-"] { height: 16px; transform-origin: 50% 100%; will-change: transform; }
+.apple-eq-bar-1 { animation: apple-eq-1 0.7s steps(5, jump-none) infinite; }
+.apple-eq-bar-2 { animation: apple-eq-2 0.55s steps(5, jump-none) infinite; }
+.apple-eq-bar-3 { animation: apple-eq-3 0.85s steps(5, jump-none) infinite; }
+.apple-eq-bar-4 { animation: apple-eq-4 0.6s steps(5, jump-none) infinite; }
+.apple-eq-bar-5 { animation: apple-eq-5 0.75s steps(5, jump-none) infinite; }
 
 
 /* 画面下(Safariのツールバー)に隠れないよう、全画面モーダルも見えている範囲に収める */
@@ -206,10 +192,10 @@ input[type=range].apple-slider:active::-webkit-slider-thumb {
 @keyframes od-spin { to { transform: rotate(360deg); } }
 @keyframes od-bubble { 0% { opacity: 0; transform: translateY(4px) scale(0.9); } 12%,85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 .od-breathe { animation: od-breathe 3.2s ease-in-out infinite; transform-origin: 50% 100%; }
-.od-bob { animation: od-bob 0.62s ease-in-out infinite; }
+.od-bob { animation: od-bob 0.62s steps(5, jump-none) infinite; }
 .od-hop { animation: od-hop 0.7s ease-out 1; }
 .od-eye { animation: od-blink 5s infinite; transform-box: fill-box; transform-origin: center; }
-.od-note { animation: od-note 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+.od-note { animation: od-note 1.4s steps(6, jump-none) infinite; transform-box: fill-box; transform-origin: 50% 100%; }
 .od-float { animation: od-float 2.2s ease-out infinite; }
 .od-spin { animation: od-spin 1.1s linear infinite; }
 .od-bubble { animation: od-bubble 4s ease-in-out 1 forwards; }
@@ -310,6 +296,28 @@ input[type=range].apple-slider:active::-webkit-slider-thumb {
 }
 [data-ui="next"] h1 { letter-spacing: -0.01em; font-weight: 900; }
 
+
+/* ===== 省電力モード (data-power="on") =====
+   動きとぼかしを止めて、処理と電池の消費を減らす。機能はそのまま使える */
+[data-power="on"] *,
+[data-power="on"] *::before,
+[data-power="on"] *::after {
+  animation-play-state: paused !important; /* 無限に続く動き（イコライザー等）を止める */
+  transition: none !important;
+}
+[data-power="on"] .animate-spin, [data-power="on"] .od-spin, [data-power="on"] .od-wait-bar {
+  animation-play-state: running !important; /* 「読み込み中」を示す動きだけは残す */
+}
+[data-power="on"] .apple-nav-glass,
+[data-power="on"] .apple-glass,
+[data-power="on"] .apple-pill-miniplayer {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: color-mix(in srgb, var(--app-bg-solid) 90%, var(--fg) 10%) !important;
+}
+[data-power="on"] .mt-ambient { display: none !important; }
+[data-power="on"] .bg-app { background-image: none !important; }
+
 /* iOSアプリ: ノッチ/ステータスバーと重ならないよう、上に安全領域ぶんの余白を入れる */
 html.native-app #root {
   padding-top: env(safe-area-inset-top, 0px);
@@ -318,3 +326,12 @@ html.native-app #root {
 /* 埋め込みプレーヤーはタップに反応させない（YouTube標準のUIが出て消えなくなるのを防ぐ）。広告中だけ操作できる */
 #yt-player-wrapper iframe { pointer-events: none; }
 #yt-player-wrapper[data-ad="1"] iframe { pointer-events: auto; }
+
+/* 再生画面: ジャケット/動画の枠。表示できる領域（縦横の小さいほう）いっぱいに広げる。設定画面の「大きさ」も反映 */
+.np-stage { container-type: size; }
+.np-art {
+  width: min(100%, 340px);
+  width: calc(min(100cqw, 100cqh) * var(--art-scale, 1));
+  max-width: 100%;
+  margin-top: var(--art-y, 0px);
+}

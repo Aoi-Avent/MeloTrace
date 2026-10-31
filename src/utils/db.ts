@@ -51,6 +51,41 @@ export async function saveTracksToDB(tracks: MusicTrack[]): Promise<void> {
   }
 }
 
+/** 変更された曲だけを書き込む（全件の書き直しより、処理も電池もずっと軽い） */
+export async function putTracksToDB(tracks: MusicTrack[]): Promise<void> {
+  if (tracks.length === 0) return;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_TRACKS, 'readwrite');
+    const store = tx.objectStore(STORE_TRACKS);
+    for (const t of tracks) store.put(t);
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn('putTracksToDB failed:', err);
+  }
+}
+
+export async function deleteTracksFromDB(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_TRACKS, 'readwrite');
+    const store = tx.objectStore(STORE_TRACKS);
+    for (const id of ids) store.delete(id);
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn('deleteTracksFromDB failed:', err);
+  }
+}
+
 export async function loadTracksFromDB(): Promise<MusicTrack[] | null> {
   try {
     const db = await openDB();
