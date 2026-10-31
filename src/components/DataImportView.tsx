@@ -20,6 +20,7 @@ import {
   Copy,
   Code2,
   FileCode,
+  ChevronDown,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { parseTakeoutJson } from '../utils/parser';
@@ -338,6 +339,9 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
     downloadAnchor.remove();
   };
 
+  // 「色テーマ」「同期」以外は、高度な設定にまとめる（最初のデータ取り込み前は、迷わないよう開いておく）
+  const [advancedOpen, setAdvancedOpen] = useState<boolean>(() => isDemoMode || activeTracks.length === 0);
+
   const handleCopyWorkflow = async () => {
     try {
       await navigator.clipboard.writeText(GITHUB_ACTIONS_WORKFLOW_YAML);
@@ -358,10 +362,26 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
         <p className="text-xs text-muted mt-0.5">
           高精度な音楽判定・除外（Ban）設定・広告抑制・データ管理
         </p>
-        <BackgroundPlayButton compact className="mt-2" />
       </header>
 
       <ThemePicker />
+
+      <AccountCard />
+
+      {/* 高度な設定（色テーマ・同期以外のすべて） */}
+      <button
+        onClick={() => setAdvancedOpen((v) => !v)}
+        aria-expanded={advancedOpen}
+        className="w-full mb-5 p-4 rounded-2xl apple-card border border-fg/10 flex items-center justify-between text-left active:scale-[0.99] transition"
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-fg">高度な設定</p>
+          <p className="text-[11px] text-muted mt-0.5">データの取り込み・表示・除外・バックアップなど</p>
+        </div>
+        <ChevronDown className={`w-5 h-5 text-muted shrink-0 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={advancedOpen ? '' : 'hidden'}>
+        <BackgroundPlayButton compact className="mb-5" />
 
       <ThumbSettings />
 
@@ -378,8 +398,6 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
       </div>
 
       <PlayDiagnostics />
-
-      <AccountCard />
 
       {/* Current Data & Ban Status Bar */}
       <div className="mb-5 p-3.5 rounded-xl apple-card border border-fg/10 flex items-center justify-between">
@@ -863,6 +881,8 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
           </button>
         </div>
       </section>
+
+      </div>
 
       {/* BANNED LIST MODAL */}
       {showBannedModal && (

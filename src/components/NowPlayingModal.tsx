@@ -38,6 +38,7 @@ import {
   MessageSquareQuote,
   Volume,
   Volume2,
+  Pencil,
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { setVideoFullscreen } from '../utils/videoFullscreen';
@@ -88,6 +89,12 @@ export const NowPlayingModal: React.FC = () => {
     isAdPlaying,
     volume,
     setVolume,
+    playlists,
+    createPlaylist,
+    updatePlaylist,
+    deletePlaylist,
+    addTrackToPlaylist,
+    removeTrackFromPlaylist,
     lyricsOffset,
     adjustLyricsOffset,
     resetLyricsOffset,
@@ -155,6 +162,112 @@ export const NowPlayingModal: React.FC = () => {
   const [ytIdx, setYtIdx] = useState(0); // 高画質→低画質の順に試すサムネイルの段階
   const [albumFailed, setAlbumFailed] = useState(false);
   const panRef = useRef<HTMLDivElement | null>(null);
+  const panImgRef = useRef<HTMLImageElement | null>(null);
+  const panOffsetRef = useRef(0);
+  const panInertiaRef = useRef(0);
+  const panGestureRef = useRef({ startX: 0, startY: 0, startOffset: 0, active: false, locked: false, lastX: 0, lastT: 0, v: 0 });
+
+  // 横長の画像を、1:1の枠の中で左右にスライドして見るための操作。
+  // ブラウザ標準のスクロールだと端で「ぐにゃっ」と伸びるので、自前で動かして、端でぴたっと止める。
+  const panMax = () => {
+    const f = panRef.current;
+    const i = panImgRef.current;
+    if (!f || !i) return 0;
+    return Math.max(0, i.offsetWidth - f.clientWidth);
+  };
+  const applyPan = (x: number) => {
+    const max = panMax();
+    const c = Math.min(0, Math.max(-max, x));
+    panOffsetRef.current = c;
+    if (panImgRef.current) panImgRef.current.style.transform = `translate3d(${c}px,0,0)`;
+    return c;
+  };
+  const centerPan = () => {
+    applyPan(-panMax() / 2);
+  };
+  const endPan = () => {
+    const g = panGestureRef.current;
+    const wasPanning = g.active && g.locked;
+    g.active = false;
+    if (!wasPanning) return;
+    // 指を離したあとの、ゆるやかな慣性。端に着いたらその場でぴたっと止まる（跳ね返りなし）
+    let v = g.v;
+    let last = performance.now();
+    cancelAnimationFrame(panInertiaRef.current);
+    const step = (t: number) => {
+      const dt = Math.min(32, t - last);
+      last = t;
+      const want = panOffsetRef.current + v * dt;
+      const got = applyPan(want);
+      v *= Math.exp(-dt / 220);
+      if (Math.abs(v) < 0.02 || got !== want) return;
+      panInertiaRef.current = requestAnimationFrame(step);
+    };
+    if (Math.abs(v) > 0.05) panInertiaRef.current = requestAnimationFrame(step);
+  };
+
+  // 再生画面を、上から下へのスワイプで閉じる（指に追従して下がり、離すと閉じるか元に戻る）
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef<{ x: number; y: number; t: number; axis: 'v' | 'n' | null; dy: number }>({ x: 0, y: 0, t: 0, axis: null, dy: 0 });
+  const closingRef = useRef(false);
+  const closeWithAnimation = () => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setDragging(false);
+    setDragY(window.innerHeight);
+    window.setTimeout(() => {
+      setIsNowPlayingOpen(false);
+      setDragY(0);
+      closingRef.current = false;
+    }, 260);
+  };
+  const finishDrag = () => {
+    const d = dragRef.current;
+    if (d.axis !== 'v') {
+      d.axis = null;
+      return;
+    }
+    const vel = d.dy / Math.max(1, performance.now() - d.t);
+    d.axis = null;
+    if (d.dy > 120 || (d.dy > 40 && vel > 0.5)) closeWithAnimation();
+    else {
+      setDragging(false);
+      setDragY(0);
+    }
+  };
+  const dragProps = {
+    onTouchStart: (e: React.TouchEvent) => {
+      if (closingRef.current || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      dragRef.current = { x: t.clientX, y: t.clientY, t: performance.now(), axis: null, dy: 0 };
+    },
+    onTouchMove: (e: React.TouchEvent) => {
+      const d = dragRef.current;
+      if (closingRef.current || d.axis === 'n') return;
+      const t = e.touches[0];
+      const dx = t.clientX - d.x;
+      const dy = t.clientY - d.y;
+      if (d.axis === null) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        // 縦（下向き）が主なら、閉じる操作。それ以外（横スライドなど）は何もしない
+        d.axis = Math.abs(dy) > Math.abs(dx) && dy > 0 ? 'v' : 'n';
+        if (d.axis !== 'v') return;
+        setDragging(true);
+      }
+      d.dy = Math.max(0, dy);
+      setDragY(d.dy);
+    },
+    onTouchEnd: finishDrag,
+    onTouchCancel: finishDrag,
+  };
+
+  // 「…」メニューのプレイリスト操作
+  const [plEditMode, setPlEditMode] = useState(false);
+  const [showNewPl, setShowNewPl] = useState(false);
+  const [newPlName, setNewPlName] = useState('');
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameVal, setRenameVal] = useState('');
 
   useEffect(() => {
     setImgError(false);
@@ -344,7 +457,7 @@ export const NowPlayingModal: React.FC = () => {
 
   // 曲名・アーティスト・お気に入り（☆）・「…」の行。歌詞や待機列の表示中は、小さなジャケット付きの省スペース版にする
   const infoRow = (compact: boolean) => (
-    <div className={`shrink-0 flex items-center gap-3 ${compact ? 'pb-3' : 'pt-5 pb-3'}`}>
+    <div className={`shrink-0 flex items-center gap-3 ${compact ? 'pb-3' : 'pt-5 pb-3'}`} {...dragProps}>
       {compact && (
         <img
           src={albumArt ? albumArt.url : `https://img.youtube.com/vi/${currentTrack.id}/mqdefault.jpg`}
@@ -383,7 +496,13 @@ export const NowPlayingModal: React.FC = () => {
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#000000] flex flex-col justify-between overflow-hidden animate-in fade-in slide-in-from-bottom duration-300 mt-sheet">
+    <div
+      className="fixed inset-0 z-50 bg-[#000000] flex flex-col justify-between overflow-hidden animate-in fade-in slide-in-from-bottom duration-300 mt-sheet"
+      style={{
+        transform: `translateY(${dragY}px)`,
+        transition: dragging ? 'none' : 'transform 0.26s cubic-bezier(0.22, 0.8, 0.2, 1)',
+      }}
+    >
       {/* Apple Music 風の背景: ジャケットの色をぼかして全体に敷く */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden select-none mt-ambient">
         <div
@@ -399,9 +518,9 @@ export const NowPlayingModal: React.FC = () => {
 
       <div className="relative z-10 flex flex-col flex-1 min-h-0 w-full max-w-md mx-auto px-6 pt-[max(env(safe-area-inset-top,0px),12px)] pb-[max(env(safe-area-inset-bottom,0px),12px)]">
         {/* つまみ（タップで閉じる） */}
-        <div className="shrink-0 flex justify-center pt-2 pb-4">
+        <div className="shrink-0 flex justify-center pt-2 pb-4" {...dragProps}>
           <button
-            onClick={() => setIsNowPlayingOpen(false)}
+            onClick={closeWithAnimation}
             aria-label="閉じる"
             className="px-10 py-2 -my-2"
           >
@@ -412,7 +531,7 @@ export const NowPlayingModal: React.FC = () => {
         {/* ===== ジャケット / 動画 ===== */}
         {(nowPlayingTab === 'art' || nowPlayingTab === 'video') && (
           <>
-            <div className="np-stage flex-1 min-h-0 relative flex items-center justify-center">
+            <div className="np-stage flex-1 min-h-0 relative flex items-center justify-center" {...dragProps}>
               {nowPlayingTab === 'art' ? (
                 <div
                   className={`np-art ${artIsWide ? 'aspect-video' : 'aspect-square'} relative rounded-2xl overflow-hidden shadow-[0_20px_44px_rgba(0,0,0,0.45)] flex items-center justify-center bg-white/10 shrink-0 mt-art-frame transition-transform duration-500 ease-out ${
@@ -429,10 +548,8 @@ export const NowPlayingModal: React.FC = () => {
                     return;
                   }
                   if (img.naturalWidth && img.naturalHeight) setImgRatio(img.naturalWidth / img.naturalHeight);
-                  if (panRef.current) {
-                    const el = panRef.current;
-                    el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
-                  }
+                  // 横長画像は、中央が見える位置から始める
+                  requestAnimationFrame(centerPan);
                 };
                 const onError = () => {
                   if (albumArt) setAlbumFailed(true);
@@ -442,10 +559,50 @@ export const NowPlayingModal: React.FC = () => {
                 return panMode ? (
                   <div
                     ref={panRef}
-                    className="absolute inset-0 overflow-x-auto overflow-y-hidden"
-                    style={{ touchAction: 'pan-x', scrollbarWidth: 'none' }}
+                    className="absolute inset-0 overflow-hidden"
+                    style={{ touchAction: 'none' }}
+                    onPointerDown={(e) => {
+                      cancelAnimationFrame(panInertiaRef.current);
+                      const g = panGestureRef.current;
+                      g.startX = e.clientX;
+                      g.startY = e.clientY;
+                      g.startOffset = panOffsetRef.current;
+                      g.active = true;
+                      g.locked = false;
+                      g.lastX = e.clientX;
+                      g.lastT = performance.now();
+                      g.v = 0;
+                    }}
+                    onPointerMove={(e) => {
+                      const g = panGestureRef.current;
+                      if (!g.active) return;
+                      const dx = e.clientX - g.startX;
+                      const dy = e.clientY - g.startY;
+                      if (!g.locked) {
+                        if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) {
+                          g.locked = true;
+                          try {
+                            e.currentTarget.setPointerCapture(e.pointerId);
+                          } catch (err) {}
+                        } else if (Math.abs(dy) > 6) {
+                          g.active = false; // 縦の動きは、再生画面を閉じる操作に任せる
+                          return;
+                        } else {
+                          return;
+                        }
+                      }
+                      const now = performance.now();
+                      const dt = now - g.lastT;
+                      if (dt > 0) g.v = 0.8 * g.v + 0.2 * ((e.clientX - g.lastX) / dt);
+                      g.lastX = e.clientX;
+                      g.lastT = now;
+                      applyPan(g.startOffset + dx);
+                    }}
+                    onPointerUp={endPan}
+                    onPointerCancel={endPan}
                   >
                     <img
+                      ref={panImgRef}
                       key={artSrc}
                       src={artSrc}
                       alt={currentTrack.title}
@@ -453,7 +610,7 @@ export const NowPlayingModal: React.FC = () => {
                       onError={onError}
                       onLoad={onLoad}
                       draggable={false}
-                      className="h-full w-auto max-w-none select-none"
+                      className="h-full w-auto max-w-none select-none will-change-transform"
                     />
                   </div>
                 ) : (
@@ -473,12 +630,6 @@ export const NowPlayingModal: React.FC = () => {
                 <Disc3 className={`w-16 h-16 text-accent mb-2 ${isBuffering ? "animate-spin" : ""}`} />
                 <p className="text-sm font-bold text-white line-clamp-2">{currentTrack.title}</p>
                 <p className="text-xs text-[#8e8e93] mt-1">{currentTrack.artist}</p>
-              </div>
-            )}
-
-            {panMode && (
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 whitespace-nowrap px-2.5 py-1 rounded-full bg-black/60 text-[10px] font-semibold text-white/90 pointer-events-none">
-                ◀ スライドで全体表示 ▶
               </div>
             )}
 
@@ -926,6 +1077,125 @@ export const NowPlayingModal: React.FC = () => {
               <Ban className="w-4 h-4" />
               <span>このアーティストをBan</span>
             </button>
+
+            <div className="flex items-center justify-between px-2 pt-3 pb-1">
+              <p className="text-[12px] font-semibold text-[#8e8e93]">プレイリスト</p>
+              {playlists.length > 0 && (
+                <button
+                  onClick={() => {
+                    setPlEditMode((v) => !v);
+                    setRenamingId(null);
+                  }}
+                  className="text-[13px] font-semibold text-accent"
+                >
+                  {plEditMode ? '完了' : '編集'}
+                </button>
+              )}
+            </div>
+            {!plEditMode ? (
+              <div className="flex flex-wrap gap-2 px-1 pb-1">
+                {playlists.map((pl) => {
+                  const has = pl.trackIds.includes(currentTrack.id);
+                  return (
+                    <button
+                      key={pl.id}
+                      onClick={() =>
+                        has ? removeTrackFromPlaylist(pl.id, currentTrack.id) : addTrackToPlaylist(pl.id, currentTrack.id)
+                      }
+                      className={sheetChip(has)}
+                    >
+                      {has ? '✓ ' : ''}
+                      {pl.name}
+                    </button>
+                  );
+                })}
+                {showNewPl ? (
+                  <form
+                    className="flex items-center gap-2 w-full pt-1"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const name = newPlName.trim();
+                      if (!name) return;
+                      createPlaylist(name, undefined, undefined, [currentTrack.id]);
+                      setNewPlName('');
+                      setShowNewPl(false);
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      value={newPlName}
+                      onChange={(e) => setNewPlName(e.target.value)}
+                      placeholder="プレイリスト名"
+                      className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white/10 text-[15px] text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                    <button type="submit" className="px-3.5 py-2 rounded-xl bg-accent text-on-accent text-[13px] font-bold">
+                      作成して追加
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => setShowNewPl(true)}
+                    className="px-3.5 py-2 rounded-full text-[13px] font-semibold bg-accent/20 text-accent active:scale-95 transition"
+                  >
+                    ＋ 新規作成
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5 px-1 pb-1">
+                {playlists.map((pl) => (
+                  <div key={pl.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/8">
+                    {renamingId === pl.id ? (
+                      <form
+                        className="flex-1 flex items-center gap-2 min-w-0"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const name = renameVal.trim();
+                          if (name) updatePlaylist(pl.id, { name });
+                          setRenamingId(null);
+                        }}
+                      >
+                        <input
+                          autoFocus
+                          value={renameVal}
+                          onChange={(e) => setRenameVal(e.target.value)}
+                          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-white/10 text-[15px] text-white focus:outline-none focus:ring-1 focus:ring-accent"
+                        />
+                        <button type="submit" className="text-[13px] font-bold text-accent shrink-0">
+                          保存
+                        </button>
+                      </form>
+                    ) : (
+                      <>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[15px] text-white truncate">{pl.name}</p>
+                          <p className="text-[11px] text-white/45">{pl.trackIds.length}曲</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setRenamingId(pl.id);
+                            setRenameVal(pl.name);
+                          }}
+                          className="w-9 h-9 flex items-center justify-center text-white/70 active:scale-90"
+                          aria-label="名前を変更"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`「${pl.name}」を削除しますか？（曲自体は消えません）`)) deletePlaylist(pl.id);
+                          }}
+                          className="w-9 h-9 flex items-center justify-center text-accent active:scale-90"
+                          aria-label="プレイリストを削除"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             <p className="text-[12px] font-semibold text-[#8e8e93] px-2 pt-3 pb-1">再生速度</p>
             <div className="flex gap-2 px-1 pb-1">

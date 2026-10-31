@@ -33,6 +33,9 @@ import {
 import { BackgroundPlayButton } from './BackgroundGuide';
 import { ArtistFilterToggle } from './ArtistFilterToggle';
 
+// 並び順が変わったときの「最新の順に更新」ボタンの表示。仕組み（画面を見ている間は並びを固定する）はそのままで、表示だけ隠している。
+// 元に戻すときは true にする。
+const SHOW_ORDER_BANNER = false;
 const SORT_STORAGE_KEY = 'melotrace_library_sort_v2';
 const GROUP_STORAGE_KEY = 'melotrace_library_group_artist_v1';
 
@@ -437,7 +440,7 @@ export const LibraryView: React.FC = () => {
             </div>
           )}
 
-          {orderStale && (
+          {SHOW_ORDER_BANNER && orderStale && (
             <div className="sticky top-1 z-10 flex justify-center mb-2">
               <button
                 onClick={applyFreshOrder}
