@@ -99,7 +99,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ setActiveTab }) => {
   const visibleMixes = isMixesExpanded ? QUICK_MIXES : QUICK_MIXES.slice(0, 6);
 
   return (
-    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto">
+    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto mt-stagger">
       {/* Apple Music Header Strip */}
       <div className="flex items-center justify-between pt-2 pb-1 border-b border-fg/5 mb-3">
         <div className="flex items-center gap-1.5">

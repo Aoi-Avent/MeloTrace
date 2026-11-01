@@ -82,31 +82,56 @@ MANUAL = (
 )
 
 
+EXTRA = (
+    '{i}// 通知音などによる「音量の一時的な低下」を避け、電話・Siriなどの割り込みが終わったら再生を復帰させる\n'
+    '{i}if #available(iOS 14.5, *) {{\n'
+    '{i}    try? AVAudioSession.sharedInstance().setPrefersNoInterruptionsFromSystemAlerts(true)\n'
+    '{i}}}\n'
+    '{i}NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) {{ note in\n'
+    '{i}    guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,\n'
+    '{i}          AVAudioSession.InterruptionType(rawValue: raw) == .ended else {{ return }}\n'
+    '{i}    try? AVAudioSession.sharedInstance().setActive(true)\n'
+    '{i}}}\n'
+)
+
+
 def patch_app_delegate():
     if not os.path.exists(APPDELEGATE):
         print(f'[skip] {APPDELEGATE} が見つかりません')
         return
     with open(APPDELEGATE, encoding='utf-8') as f:
         s = f.read()
-    if 'AVAudioSession' in s:
-        return
-    m = re.search(r'didFinishLaunchingWithOptions[^{]*\{', s)
-    idx = s.find('return true', m.end()) if m else -1
-    if idx == -1:
-        print(MANUAL)
-        return
-    line_start = s.rfind('\n', 0, idx) + 1
-    indent = re.match(r'[ \t]*', s[line_start:]).group(0)
-    s = s[:line_start] + SNIPPET.format(i=indent) + s[line_start:]
-    if 'import AVFoundation' not in s:
-        im = re.search(r'^import .*$', s, re.M)
-        if im:
-            s = s[: im.end()] + '\nimport AVFoundation' + s[im.end():]
+    changed = False
+    if 'AVAudioSession' not in s:
+        m = re.search(r'didFinishLaunchingWithOptions[^{]*\{', s)
+        idx = s.find('return true', m.end()) if m else -1
+        if idx == -1:
+            print(MANUAL)
+            return
+        line_start = s.rfind('\n', 0, idx) + 1
+        indent = re.match(r'[ \t]*', s[line_start:]).group(0)
+        s = s[:line_start] + SNIPPET.format(i=indent) + s[line_start:]
+        if 'import AVFoundation' not in s:
+            im = re.search(r'^import .*$', s, re.M)
+            if im:
+                s = s[: im.end()] + '\nimport AVFoundation' + s[im.end():]
+            else:
+                s = 'import AVFoundation\n' + s
+        changed = True
+        print('[ok] AppDelegate.swift にオーディオセッション設定を追加')
+    if 'setPrefersNoInterruptionsFromSystemAlerts' not in s:
+        # 既存のオーディオセッション設定ブロックの直後に追加する
+        m = re.search(r'AVAudioSession setup failed[^\n]*\n(?P<ind>[ \t]*)\}\n', s)
+        if m:
+            indent = m.group('ind')
+            s = s[: m.end()] + EXTRA.format(i=indent) + s[m.end():]
+            changed = True
+            print('[ok] AppDelegate.swift に音量低下の対策（システム通知・割り込み復帰）を追加')
         else:
-            s = 'import AVFoundation\n' + s
-    with open(APPDELEGATE, 'w', encoding='utf-8') as f:
-        f.write(s)
-    print('[ok] AppDelegate.swift にオーディオセッション設定を追加')
+            print('[warn] 音量低下の対策を AppDelegate.swift に自動追加できませんでした（手動で追加が必要）')
+    if changed:
+        with open(APPDELEGATE, 'w', encoding='utf-8') as f:
+            f.write(s)
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Search, ArrowDownUp, Heart, Play, BadgeCheck } from 'lucide-react';
+import { Search, ArrowDownUp, Heart, Play, BadgeCheck, Star } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { ArtistSummary, MusicTrack } from '../types/music';
 import { BackgroundPlayButton } from './BackgroundGuide';
@@ -21,8 +21,10 @@ const collator = new Intl.Collator('ja', { sensitivity: 'base', numeric: true })
 const STORAGE_KEY = 'melotrace_artists_sort_v1';
 
 export const ArtistsView: React.FC = () => {
-  const { musicTracks, setSelectedArtistForDetail, playTrack, artistStatus, setArtistOverride } = usePlayer();
+  const { musicTracks, setSelectedArtistForDetail, playTrack, artistStatus, setArtistOverride, favoriteArtists, toggleFavoriteArtist } = usePlayer();
   const [query, setQuery] = useState('');
+  const [favOnly, setFavOnly] = useState(false);
+  const favSet = useMemo(() => new Set(favoriteArtists), [favoriteArtists]);
   const [sortKey, setSortKey] = useState<ArtistSortKey>(() => {
     try {
       const v = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
@@ -72,7 +74,8 @@ export const ArtistsView: React.FC = () => {
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = q ? artists.filter((a) => a.name.toLowerCase().includes(q)) : artists;
+    const base = favOnly ? artists.filter((a) => favSet.has(a.name)) : artists;
+    const filtered = q ? base.filter((a) => a.name.toLowerCase().includes(q)) : base;
     const sign = dir === 'asc' ? 1 : -1;
     return [...filtered].sort((a, b) => {
       let c = 0;
@@ -99,7 +102,8 @@ export const ArtistsView: React.FC = () => {
       // 同値は名前順で安定化（二次キー）
       return c !== 0 ? c * sign : collator.compare(a.name, b.name);
     });
-  }, [artists, query, sortKey, dir]);
+  }, [artists, query, sortKey, dir, favOnly, favSet]);
+  const favCount = useMemo(() => artists.filter((a) => favSet.has(a.name)).length, [artists, favSet]);
 
   const subtitle = (a: ArtistSummary) => {
     switch (sortKey) {
@@ -115,13 +119,29 @@ export const ArtistsView: React.FC = () => {
   };
 
   return (
-    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto">
+    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto mt-stagger">
       <header className="pt-2 pb-2">
         <h1 className="text-2xl font-bold text-fg">アーティスト</h1>
         <p className="text-xs text-muted mt-0.5">{list.length} 組</p>
         <BackgroundPlayButton compact className="mt-2" />
         <ArtistFilterToggle className="mt-2" />
       </header>
+
+      <div className="flex items-center gap-1 p-1 rounded-xl bg-fg/10 mb-3">
+        <button
+          onClick={() => setFavOnly(false)}
+          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${!favOnly ? 'bg-fg text-inverse' : 'text-fg/70'}`}
+        >
+          すべて
+        </button>
+        <button
+          onClick={() => setFavOnly(true)}
+          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${favOnly ? 'bg-fg text-inverse' : 'text-fg/70'}`}
+        >
+          <Star className={`w-3.5 h-3.5 ${favOnly ? 'fill-current' : ''}`} />
+          お気に入り ({favCount})
+        </button>
+      </div>
 
       <div className="relative mb-3">
         <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
@@ -151,7 +171,7 @@ export const ArtistsView: React.FC = () => {
         <ArrowDownUp className="w-3 h-3" />選択中のボタンをもう一度押すと昇順／降順が切り替わります
       </p>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 mt-stagger">
         {list.map((a) => (
           <div
             key={a.name}
@@ -182,6 +202,18 @@ export const ArtistsView: React.FC = () => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                toggleFavoriteArtist(a.name);
+              }}
+              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                favSet.has(a.name) ? 'bg-accent/20 text-accent' : 'bg-fg/5 text-muted'
+              }`}
+              aria-label={favSet.has(a.name) ? 'お気に入りを解除' : 'お気に入りに追加'}
+            >
+              <Star className={`w-3.5 h-3.5 ${favSet.has(a.name) ? 'fill-current' : ''}`} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
                 const verified = artistStatus(a.name) === 'verified';
                 if (window.confirm(verified ? `「${a.name}」を公式アーティストから外しますか？` : `「${a.name}」を公式アーティストとして扱いますか？`)) {
                   setArtistOverride(a.name, verified ? 'exclude' : 'official');
@@ -205,7 +237,11 @@ export const ArtistsView: React.FC = () => {
             </button>
           </div>
         ))}
-        {list.length === 0 && <p className="text-xs text-muted text-center py-10">該当するアーティストがいません。</p>}
+        {list.length === 0 && (
+          <p className="text-xs text-muted text-center py-10">
+            {favOnly && !query ? 'お気に入りのアーティストはまだいません。各アーティストの ☆ を押すと追加できます。' : '該当するアーティストがいません。'}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -35,7 +35,7 @@ export const RadioView: React.FC = () => {
   };
 
   return (
-    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto">
+    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto mt-stagger">
       {/* Top Header */}
       <div className="pt-2 pb-1 mb-2">
         <h1 className="text-3xl font-extrabold text-fg tracking-tight">

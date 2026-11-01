@@ -64,6 +64,8 @@ export function contentSignature(s: {
     s.settings.themeId ?? null,
     s.settings.artistFilterMode ?? null,
     s.settings.artworkSource ?? null,
+    // お気に入りアーティストが空のときは、これまでの署名と同じ形にしておく（既存の同期状態を乱さないため）
+    ...((s.settings.favoriteArtists || []).length > 0 ? [[...(s.settings.favoriteArtists || [])].sort()] : []),
   ]);
 }
 

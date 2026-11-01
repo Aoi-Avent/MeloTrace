@@ -26,8 +26,8 @@ export interface BackgroundResumeOptions {
 }
 
 const WATCH_MS = 20000; // 背面に回ってから、この間だけ見張る
-const INTERVAL_MS = 700;
-const STUCK_TICKS = 4; // 約3秒、読み込み中のまま進まなければ読み込み直す
+const INTERVAL_MS = 250;
+const STUCK_TICKS = 12; // 約3秒、読み込み中のまま進まなければ読み込み直す
 const MAX_RELOADS = 2;
 
 export async function setupNativeBackgroundResume(o: BackgroundResumeOptions): Promise<() => void> {
@@ -67,7 +67,7 @@ export async function setupNativeBackgroundResume(o: BackgroundResumeOptions): P
       const t = o.getTime();
       const moved = Math.abs(t - lastTime) > 0.2;
       lastTime = t;
-      if (ticks % 3 === 0) o.log(`背面 ${Math.round(elapsed / 1000)}秒 状態=${st} 位置=${t.toFixed(1)}`);
+      if (ticks % 8 === 0) o.log(`背面 ${Math.round(elapsed / 1000)}秒 状態=${st} 位置=${t.toFixed(1)}`);
 
       if (st === 1) {
         stuckTicks = 0;

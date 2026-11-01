@@ -64,6 +64,8 @@ interface PlayerContextType {
   setStrictnessMode: (mode: 'strict' | 'standard' | 'all') => void;
   banArtist: (artist: string) => void;
   unbanArtist: (artist: string) => void;
+  favoriteArtists: string[];
+  toggleFavoriteArtist: (artist: string) => void;
   banTrack: (trackId: string) => void;
   unbanTrack: (trackId: string) => void;
   clearAllBans: () => void;
@@ -183,6 +185,7 @@ const STORAGE_KEY_TRACKS = 'melotrace_tracks_v5';
 const STORAGE_KEY_PLAYLISTS = 'melotrace_playlists_v5';
 const STORAGE_KEY_IS_DEMO = 'melotrace_is_demo_v5';
 const STORAGE_KEY_BANNED_ARTISTS = 'melotrace_banned_artists_v1';
+const STORAGE_KEY_FAV_ARTISTS = 'melotrace_favorite_artists_v1';
 const STORAGE_KEY_BANNED_TRACKS = 'melotrace_banned_tracks_v1';
 const STORAGE_KEY_STRICTNESS = 'melotrace_strictness_v1';
 const STORAGE_KEY_LAST_TRACK_ID = 'melotrace_last_track_id_v5';
@@ -218,6 +221,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       const saved = localStorage.getItem(STORAGE_KEY_BANNED_ARTISTS);
       if (saved) return JSON.parse(saved);
+    } catch (e) {
+      // ignore
+    }
+    return [];
+  });
+
+  // お気に入りのアーティスト（端末に保存し、Googleアカウント同期の「設定」に含めて他の端末にも反映する）
+  const [favoriteArtists, setFavoriteArtists] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_FAV_ARTISTS);
+      if (saved) {
+        const v = JSON.parse(saved);
+        if (Array.isArray(v)) return v.filter((x) => typeof x === 'string');
+      }
     } catch (e) {
       // ignore
     }
@@ -358,6 +375,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isBuffering, setIsBuffering] = useState<boolean>(false);
   // ユーザーが決めた音量（0〜100）。再生側が「音を戻す」処理をするときも、この値を使う（iPhoneではWebから変えられない）
   const userVolumeRef = useRef<number>(100);
+  const lastVolStatRef = useRef<string>('');
   const [volume, setVolumeState] = useState<number>(100);
   const setVolume = useCallback((v: number) => {
     const nv = Math.max(0, Math.min(100, Math.round(v)));
@@ -1288,6 +1306,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                   p?.unloadModule?.('captions');
                   p?.unloadModule?.('cc');
                 } catch (e) {}
+                // 音量の診断: YouTube側の音量補正（「100% / 72%」のような表示）が変わったときだけ、再生ログに残す
+                try {
+                  const sn = p?.getStatsForNerds?.();
+                  const v = sn?.volume ?? sn?.Volume;
+                  if (v && String(v) !== lastVolStatRef.current) {
+                    lastVolStatRef.current = String(v);
+                    logEvent(`音量: ${String(v)}`);
+                  }
+                } catch (e) {}
                 setIsPlaying(true);
                 consecutiveErrorsRef.current = 0;
                 html5ErrorCountRef.current = 0;
@@ -1715,6 +1742,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setBannedArtists((prev) => prev.filter((a) => a !== artist));
   }, []);
 
+  const toggleFavoriteArtist = useCallback((artist: string) => {
+    setFavoriteArtists((prev) => (prev.includes(artist) ? prev.filter((a) => a !== artist) : [...prev, artist]));
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_FAV_ARTISTS, JSON.stringify(favoriteArtists));
+    } catch (e) {}
+  }, [favoriteArtists]);
+
   const banTrack = useCallback((trackId: string) => {
     setBannedTracks((prev) => (prev.includes(trackId) ? prev : [...prev, trackId]));
   }, []);
@@ -1998,8 +2035,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     new Date().toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
   const syncSettings = useMemo(
-    () => ({ strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin, themeId, artistFilterMode, artworkSource }),
-    [strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin, themeId, artistFilterMode, artworkSource]
+    () => ({ strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin, themeId, artistFilterMode, artworkSource, favoriteArtists }),
+    [strictnessMode, lyricsDisplayMode, artworkAspectRatio, retroPlayerSkin, themeId, artistFilterMode, artworkSource, favoriteArtists]
   );
 
   const syncSignature = useMemo(
@@ -2038,6 +2075,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (st.themeId) setThemeIdState(st.themeId);
     if (st.artistFilterMode) setArtistFilterModeState(st.artistFilterMode);
     if (st.artworkSource) setArtworkSourceState(st.artworkSource);
+    if (Array.isArray(st.favoriteArtists)) setFavoriteArtists(st.favoriteArtists);
   }, []);
 
   const ensureToken = useCallback(async () => {
@@ -2255,6 +2293,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setStrictnessMode,
         banArtist,
         unbanArtist,
+        favoriteArtists,
+        toggleFavoriteArtist,
         banTrack,
         unbanTrack,
         clearAllBans,

@@ -353,7 +353,7 @@ export const DataImportView: React.FC<DataImportViewProps> = ({ setActiveTab }) 
   };
 
   return (
-    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto">
+    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto mt-stagger">
       {/* Top Header */}
       <header className="pt-2 pb-1 mb-4">
         <h1 className="text-3xl font-extrabold text-fg tracking-tight">

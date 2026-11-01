@@ -36,7 +36,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
             >
               <Icon
                 className={`w-[22px] h-[22px] transition-transform ${
-                  isActive ? 'stroke-[2.4] scale-105' : 'stroke-[1.8]'
+                  isActive ? 'stroke-[2.4] scale-105 mt-pop' : 'stroke-[1.8]'
                 }`}
               />
               <span className={`text-[10px] mt-1 font-medium tracking-tight ${isActive ? 'font-semibold' : ''}`}>

@@ -86,7 +86,7 @@ export const AnalyticsView: React.FC = () => {
   };
 
   return (
-    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto">
+    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto mt-stagger">
       {/* Top Header */}
       <header className="pt-2 pb-1 mb-3">
         <div className="flex items-center gap-1.5 mb-1">

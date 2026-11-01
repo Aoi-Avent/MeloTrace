@@ -35,6 +35,8 @@ export interface SyncSettings {
   themeId?: string;
   artistFilterMode?: 'all' | 'official';
   artworkSource?: 'album' | 'youtube';
+  /** お気に入りのアーティスト名 */
+  favoriteArtists?: string[];
 }
 
 export interface SyncPayload {

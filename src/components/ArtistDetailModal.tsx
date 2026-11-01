@@ -10,6 +10,7 @@ import {
   Clock,
   Sparkles,
   ChevronDown,
+  Star,
 } from 'lucide-react';
 import { MusicTrack } from '../types/music';
 import { usePlayer } from '../context/PlayerContext';
@@ -31,6 +32,8 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
     setIsShuffle,
     toggleFavorite,
     banArtist,
+    favoriteArtists,
+    toggleFavoriteArtist,
   } = usePlayer();
 
   const artistTracks = useMemo(() => {
@@ -52,6 +55,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
   }, [artistTracks]);
 
   if (!artistName) return null;
+  const isFavArtist = favoriteArtists.includes(artistName);
 
   const topTrack = sortedTracks[0];
   const representativeThumbnail =
@@ -96,7 +100,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
         )}
       </div>
 
-      <div className="relative z-10 w-full max-w-lg mx-auto bg-surface/95 border-t border-fg/10 rounded-t-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden pb-[max(env(safe-area-inset-bottom,0px),12px)]">
+      <div className="relative z-10 w-full max-w-lg mx-auto animate-in slide-in-from-bottom duration-300 bg-surface/95 border-t border-fg/10 rounded-t-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden pb-[max(env(safe-area-inset-bottom,0px),12px)]">
         {/* Top Handle / Close Bar */}
         <div className="flex items-center justify-between px-5 pt-3 pb-2 border-b border-fg/5">
           <div className="w-8" />
@@ -157,6 +161,16 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
                 <Shuffle className="w-4 h-4" />
                 <span>シャッフル</span>
               </button>
+
+              <button
+                onClick={() => toggleFavoriteArtist(artistName)}
+                className={`w-12 shrink-0 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-all ${
+                  isFavArtist ? 'bg-accent/20 text-accent' : 'bg-fg/10 text-fg'
+                }`}
+                aria-label={isFavArtist ? 'お気に入りのアーティストを解除' : 'お気に入りのアーティストに追加'}
+              >
+                <Star key={String(isFavArtist)} className={`w-4 h-4 ${isFavArtist ? 'fill-current mt-pop' : ''}`} />
+              </button>
             </div>
           </div>
 
@@ -169,7 +183,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({
               <span className="text-[11px] text-muted">再生回数順</span>
             </div>
 
-            <div className="divide-y divide-fg/5">
+            <div className="divide-y divide-fg/5 mt-stagger">
               {sortedTracks.map((track, idx) => {
                 const isCurrent = currentTrack?.id === track.id;
                 return (

@@ -89,6 +89,8 @@ export const NowPlayingModal: React.FC = () => {
     isAdPlaying,
     volume,
     setVolume,
+    favoriteArtists,
+    toggleFavoriteArtist,
     playlists,
     createPlaylist,
     updatePlaylist,
@@ -466,7 +468,7 @@ export const NowPlayingModal: React.FC = () => {
           className="w-[52px] h-[52px] rounded-lg object-cover shrink-0 bg-white/10"
         />
       )}
-      <div className="min-w-0 flex-1">
+      <div key={currentTrack.id} className="min-w-0 flex-1 animate-in fade-in slide-in-from-bottom-1 duration-300">
         <h2 className={`${compact ? 'text-[17px]' : 'text-[22px]'} font-semibold text-white truncate leading-tight tracking-tight`}>
           {currentTrack.title}
         </h2>
@@ -621,7 +623,7 @@ export const NowPlayingModal: React.FC = () => {
                     referrerPolicy="no-referrer"
                     onError={onError}
                     onLoad={onLoad}
-                    className="w-full h-full object-cover mt-focus"
+                    className="w-full h-full object-cover mt-focus animate-in fade-in duration-500"
                   />
                 );
               })()
@@ -1045,6 +1047,14 @@ export const NowPlayingModal: React.FC = () => {
             <div className="mx-auto mb-3 w-10 h-1 rounded-full bg-white/30" />
 
             <p className="text-[12px] font-semibold text-[#8e8e93] px-2 py-1">曲・アーティスト</p>
+            <button onClick={() => toggleFavoriteArtist(currentTrack.artist)} className={sheetBtn}>
+              <Star className={`w-4 h-4 text-accent ${favoriteArtists.includes(currentTrack.artist) ? 'fill-accent' : ''}`} />
+              <span>
+                {favoriteArtists.includes(currentTrack.artist)
+                  ? 'このアーティストのお気に入りを解除'
+                  : 'このアーティストをお気に入りに追加'}
+              </span>
+            </button>
             <button
               onClick={() => {
                 setSelectedArtistForDetail(currentTrack.artist);

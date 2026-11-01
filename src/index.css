@@ -335,3 +335,36 @@ html.native-app #root {
   max-width: 100%;
   margin-top: var(--art-y, 0px);
 }
+
+
+/* ===== アニメーション（軽量: 透明度と位置だけを動かす。省電力モード・アニメーションOFFでは無効） ===== */
+@keyframes mt-stagger-k { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
+/* 画面・リストの子要素が、上から順に（最大12個まで）ふわっと現れる。表示のたびに動くのは最初の一瞬だけ */
+:where(html[data-anim="on"]:not([data-power="on"])) .mt-stagger > * {
+  animation: mt-stagger-k 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+:where(html[data-anim="on"]:not([data-power="on"])) .mt-stagger > *:nth-child(n + 13) { animation: none; }
+.mt-stagger > *:nth-child(2) { animation-delay: 32ms; }
+.mt-stagger > *:nth-child(3) { animation-delay: 64ms; }
+.mt-stagger > *:nth-child(4) { animation-delay: 96ms; }
+.mt-stagger > *:nth-child(5) { animation-delay: 128ms; }
+.mt-stagger > *:nth-child(6) { animation-delay: 160ms; }
+.mt-stagger > *:nth-child(7) { animation-delay: 192ms; }
+.mt-stagger > *:nth-child(8) { animation-delay: 224ms; }
+.mt-stagger > *:nth-child(9) { animation-delay: 256ms; }
+.mt-stagger > *:nth-child(10) { animation-delay: 288ms; }
+.mt-stagger > *:nth-child(11) { animation-delay: 320ms; }
+.mt-stagger > *:nth-child(12) { animation-delay: 352ms; }
+
+/* ボタンなどを押したときの、ぎゅっと沈む動きと、色の切り替わり（指定のある要素は、その指定を優先） */
+:where(html[data-anim="on"]:not([data-power="on"])) :where(button:not(:disabled), a[href], [role="button"], summary) {
+  transition: scale 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+}
+:where(html[data-anim="on"]:not([data-power="on"])) :where(button:not(:disabled), a[href], [role="button"]):active {
+  scale: 0.965;
+}
+
+/* 省電力モードでは、一回きりの登場アニメーションを止める（止めると最初の透明な状態で固まるため、無効化する） */
+[data-power="on"] .mt-tab-in, [data-power="on"] .mt-row-in, [data-power="on"] .mt-sheet,
+[data-power="on"] .mt-pop, [data-power="on"] .animate-in { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .mt-stagger > * { animation: none !important; } }

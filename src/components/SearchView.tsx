@@ -97,7 +97,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectArtist }) => {
   };
 
   return (
-    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto">
+    <div className="ios-scroll-container pb-36 pt-2 px-4 max-w-lg mx-auto mt-stagger">
       {/* Apple Music Large Header */}
       <div className="pt-2 pb-1">
         <h1 className="text-3xl font-extrabold text-fg tracking-tight">検索</h1>
